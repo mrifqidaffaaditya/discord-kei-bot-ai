@@ -6,16 +6,47 @@ const client = new OpenAI({
   baseURL: process.env.OPENAI_BASE_URL,
 })
 
-export async function generateReply({ system, history, memory, userInput, debug = false }) {
+/**
+ * Format server memory menjadi teks compact tapi unambiguous.
+ * Input:  [{user_id, key, value}, ...]
+ * Output: "@UserTag — key: value | key: value\n@UserTag2 — key: value"
+ * 
+ * Delimiter " — " memisahkan user dari data.
+ * Delimiter " | " memisahkan antar fakta.
+ * Delimiter ": " memisahkan key dari value.
+ * 
+ * userTagMap = { userId: displayName }
+ */
+function formatServerMemory(memoryRows, userTagMap = {}) {
+  if (!memoryRows || memoryRows.length === 0) return ''
+
+  // Group by user_id
+  const grouped = {}
+  for (const row of memoryRows) {
+    if (!grouped[row.user_id]) grouped[row.user_id] = []
+    grouped[row.user_id].push(`${row.key}: ${row.value}`)
+  }
+
+  const lines = []
+  for (const [uid, entries] of Object.entries(grouped)) {
+    const tag = userTagMap[uid] || `User(${uid.slice(-4)})`
+    lines.push(`@${tag} — ${entries.join(' | ')}`)
+  }
+
+  return lines.join('\n')
+}
+
+export async function generateReply({ system, history, memory, userInput, userTagMap = {}, debug = false }) {
   try {
-    const memoryText = memory.length > 0
-      ? `\n\nMemory user:\n${JSON.stringify(memory)}`
+    const memoryText = formatServerMemory(memory, userTagMap)
+    const memorySection = memoryText
+      ? `\n\nMemory server (info tentang user-user di server ini):\n${memoryText}`
       : ''
 
     const messages = [
       {
         role: "system",
-        content: `${system}${memoryText}`
+        content: `${system}${memorySection}`
       },
       ...history,
       { role: "user", content: userInput }
@@ -38,18 +69,19 @@ export async function generateReply({ system, history, memory, userInput, debug 
   }
 }
 
-// 🔍 memory extraction step — menganalisis percakapan user + AI reply + memory lama
-export async function extractMemory(userInput, aiReply = '', existingMemory = []) {
+// 🔍 memory extraction — menganalisis percakapan dan extract info tentang user tertentu
+export async function extractMemory(userInput, aiReply = '', existingMemory = [], userTag = 'User') {
   if (!userInput || userInput.trim().length < 3) return []
 
   try {
     const conversationContext = aiReply
-      ? `User: ${userInput}\nAI: ${aiReply}`
-      : `User: ${userInput}`
+      ? `${userTag}: ${userInput}\nAI: ${aiReply}`
+      : `${userTag}: ${userInput}`
 
+    // Filter existing memory hanya untuk user ini (hemat token)
     const existingMemoryText = existingMemory.length > 0
-      ? `\n\nMemory yang SUDAH tersimpan:\n${JSON.stringify(existingMemory)}`
-      : '\n\nBelum ada memory yang tersimpan.'
+      ? `\n\nMemory yang SUDAH tersimpan untuk ${userTag}:\n${existingMemory.map(m => `${m.key}: ${m.value}`).join(' | ')}`
+      : `\n\nBelum ada memory tersimpan untuk ${userTag}.`
 
     const res = await client.chat.completions.create({
       model: CONFIG.ai.model,
@@ -58,7 +90,7 @@ export async function extractMemory(userInput, aiReply = '', existingMemory = []
       messages: [
         {
           role: "system",
-          content: `Kamu adalah sistem ekstraksi memory. Analisis percakapan berikut dan tentukan memory apa yang perlu DITAMBAHKAN atau DIUPDATE.
+          content: `Kamu adalah sistem ekstraksi memory. Analisis percakapan berikut dan tentukan memory apa yang perlu DITAMBAHKAN atau DIUPDATE untuk user "${userTag}".
 ${existingMemoryText}
 
 ATURAN:
@@ -66,6 +98,7 @@ ATURAN:
 2. Jika ada info yang BERUBAH dari memory lama → UPDATE (gunakan key yang sama)
 3. Jangan ulangi memory lama yang tidak berubah
 4. Hanya return entry yang BARU atau BERUBAH
+5. Semua memory ini tentang user "${userTag}" — fokus pada info tentang mereka
 
 WAJIB simpan jika ada:
 - Nama, panggilan, nickname, umur, gender

@@ -3,37 +3,39 @@ import { CONFIG } from './config.js'
 
 const LIMIT = CONFIG.ai.historyLimit
 
-export async function addHistory(guildId, userId, message) {
+// History sekarang per-server (shared timeline), bukan per-user.
+// userTag digunakan untuk menandai siapa yang bicara di log.
+
+export async function addHistory(guildId, role, content, userTag = null) {
   await db.query(
-    `INSERT INTO histories (guild_id, user_id, role, content)
+    `INSERT INTO histories (guild_id, role, content, user_tag)
      VALUES (?, ?, ?, ?)`,
-    [guildId, userId, message.role, message.content]
+    [guildId, role, content, userTag]
   )
 
-  // cleanup old history (keep last 30)
+  // Cleanup: keep only last N messages per server
   await db.query(
     `DELETE FROM histories
      WHERE id NOT IN (
        SELECT id FROM (
          SELECT id FROM histories
-         WHERE guild_id=? AND user_id=?
+         WHERE guild_id=?
          ORDER BY id DESC
          LIMIT ?
        ) as t
      )
-     AND guild_id=? AND user_id=?`,
-    [guildId, userId, LIMIT, guildId, userId]
+     AND guild_id=?`,
+    [guildId, LIMIT, guildId]
   )
 }
 
-export async function getHistory(guildId, userId) {
+export async function getHistory(guildId) {
   const [rows] = await db.query(
-    `SELECT role, content
-     FROM histories
-     WHERE guild_id=? AND user_id=?
+    `SELECT role, content FROM histories
+     WHERE guild_id=?
      ORDER BY id ASC
      LIMIT ?`,
-    [guildId, userId, LIMIT]
+    [guildId, LIMIT]
   )
 
   return rows.map(r => ({
@@ -42,14 +44,7 @@ export async function getHistory(guildId, userId) {
   }))
 }
 
-export async function clearHistory(guildId, userId) {
-  await db.query(
-    `DELETE FROM histories WHERE guild_id=? AND user_id=?`,
-    [guildId, userId]
-  )
-}
-
-export async function clearServerHistory(guildId) {
+export async function clearHistory(guildId) {
   await db.query(
     `DELETE FROM histories WHERE guild_id=?`,
     [guildId]

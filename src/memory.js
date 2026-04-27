@@ -1,13 +1,15 @@
 import { db } from './db.js'
 
-export async function getUserMemory(guildId, userId) {
+// Ambil SEMUA memory di server (semua user), untuk konteks shared
+export async function getServerMemory(guildId) {
   const [rows] = await db.query(
-    `SELECT \`key\`, value FROM memories WHERE guild_id=? AND user_id=?`,
-    [guildId, userId]
+    `SELECT user_id, \`key\`, value FROM memories WHERE guild_id=?`,
+    [guildId]
   )
   return rows
 }
 
+// Simpan memory untuk user tertentu di server
 export async function upsertMemory(guildId, userId, entries) {
   for (const e of entries) {
     await db.query(
@@ -19,13 +21,15 @@ export async function upsertMemory(guildId, userId, entries) {
   }
 }
 
-export async function clearMemory(guildId, userId) {
+// Hapus memory 1 user saja di server tertentu
+export async function clearUserMemory(guildId, userId) {
   await db.query(
     `DELETE FROM memories WHERE guild_id=? AND user_id=?`,
     [guildId, userId]
   )
 }
 
+// Hapus semua memory di server
 export async function clearServerMemory(guildId) {
   await db.query(
     `DELETE FROM memories WHERE guild_id=?`,

@@ -12,17 +12,28 @@ export const db = mysql.createPool({
 })
 
 export async function initDb() {
+  // History sekarang per-server (shared), bukan per-user
+  // user_tag menyimpan display name user yang bicara
   await db.query(`
     CREATE TABLE IF NOT EXISTS histories (
       id INT AUTO_INCREMENT PRIMARY KEY,
       guild_id VARCHAR(255) NOT NULL,
-      user_id VARCHAR(255) NOT NULL,
+      user_tag VARCHAR(100) DEFAULT NULL,
       role VARCHAR(20) NOT NULL,
       content TEXT NOT NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_guild_user (guild_id, user_id)
+      INDEX idx_guild (guild_id)
     )
   `)
+
+  // Migrasi: tambah kolom user_tag jika belum ada (untuk database lama)
+  await db.query(`
+    ALTER TABLE histories ADD COLUMN IF NOT EXISTS user_tag VARCHAR(100) DEFAULT NULL
+  `).catch(() => {})
+
+  // Migrasi: drop old index, add new one (ignore errors if already done)
+  await db.query(`ALTER TABLE histories DROP INDEX idx_guild_user`).catch(() => {})
+  await db.query(`CREATE INDEX idx_guild ON histories (guild_id)`).catch(() => {})
 
   await db.query(`
     CREATE TABLE IF NOT EXISTS memories (
