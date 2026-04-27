@@ -1,6 +1,7 @@
 import { db } from './db.js'
+import { CONFIG } from './config.js'
 
-const LIMIT = 30
+const LIMIT = CONFIG.ai.historyLimit
 
 export async function addHistory(guildId, userId, message) {
   await db.query(
