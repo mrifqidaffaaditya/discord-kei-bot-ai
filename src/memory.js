@@ -25,3 +25,10 @@ export async function clearMemory(guildId, userId) {
     [guildId, userId]
   )
 }
+
+export async function clearServerMemory(guildId) {
+  await db.query(
+    `DELETE FROM memories WHERE guild_id=?`,
+    [guildId]
+  )
+}

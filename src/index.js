@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, Partials } from 'discord.js'
+import { Client, Events, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder } from 'discord.js'
 import { CONFIG } from './config.js'
 import { getUserMemory, upsertMemory } from './memory.js'
 import { addHistory, getHistory } from './history.js'
@@ -39,11 +39,34 @@ function splitMessage(text, maxLength = MAX_MSG_LENGTH) {
 client.once(Events.ClientReady, async () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`)
   console.log(`[Bot] Serving ${client.guilds.cache.size} server(s)`)
+
   try {
     await initDb()
     console.log('[DB] Database tables initialized.')
   } catch (error) {
     console.error('[DB] Failed to initialize database:', error)
+  }
+
+  // Auto-register slash commands
+  try {
+    const commands = [
+      new SlashCommandBuilder().setName('help').setDescription('Tampilkan daftar perintah dan cara menggunakan bot'),
+      new SlashCommandBuilder().setName('setup').setDescription('Izinkan bot AI merespons di channel ini (Admin Server)'),
+      new SlashCommandBuilder().setName('remove-channel').setDescription('Hapus izin bot AI di channel ini (Admin Server)'),
+      new SlashCommandBuilder().setName('set-personality').setDescription('Ubah sifat bot untuk server ini (Admin Server)')
+        .addStringOption(opt => opt.setName('personality').setDescription('Instruksi baru').setRequired(true)),
+      new SlashCommandBuilder().setName('toggle-clear').setDescription('Izinkan/larang user menghapus data mereka (Admin Server)'),
+      new SlashCommandBuilder().setName('purge-server').setDescription('Hapus SEMUA data user di server ini (Admin Server)'),
+      new SlashCommandBuilder().setName('clear-memory').setDescription('Hapus memory bot tentang kamu'),
+      new SlashCommandBuilder().setName('clear-history').setDescription('Hapus riwayat obrolan kamu dengan bot'),
+      new SlashCommandBuilder().setName('debug').setDescription('Toggle debug mode (Bot Owner)'),
+    ].map(c => c.toJSON())
+
+    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN)
+    await rest.put(Routes.applicationCommands(client.user.id), { body: commands })
+    console.log('[Bot] Slash commands registered.')
+  } catch (error) {
+    console.error('[Bot] Failed to register slash commands:', error)
   }
 })
 
@@ -53,14 +76,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
   const isDM = !interaction.guildId
   const guildId = isDM ? "dm" : interaction.guildId
   const userId = interaction.user.id
-  const isAdmin = CONFIG.adminIds.includes(userId)
+  const isBotAdmin = CONFIG.adminIds.includes(userId)
 
   console.log(`[Interaction] /${interaction.commandName} by ${interaction.user.tag}`)
 
   const newDebugMode = await handleInteraction(interaction, {
     guildId,
     userId,
-    isAdmin,
+    isBotAdmin,
     debug: debugMode
   })
   if (newDebugMode !== undefined) {
@@ -74,7 +97,7 @@ client.on(Events.MessageCreate, async (msg) => {
   const isDM = msg.channel.isDMBased()
   const guildId = isDM ? "dm" : msg.guild.id
   const userId = msg.author.id
-  const isAdmin = CONFIG.adminIds.includes(userId)
+  const isBotAdmin = CONFIG.adminIds.includes(userId)
 
   // legacy text command (works anywhere, no channel restriction)
   if (msg.content.startsWith("!ai ")) {
@@ -83,7 +106,7 @@ client.on(Events.MessageCreate, async (msg) => {
     const newDebugMode = await handleLegacyCommand(msg, args, {
       guildId,
       userId,
-      isAdmin,
+      isBotAdmin,
       debug: debugMode
     })
     if (newDebugMode !== undefined) {

@@ -45,9 +45,15 @@ export async function initDb() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS server_configs (
       guild_id VARCHAR(255) PRIMARY KEY,
-      personality TEXT
+      personality TEXT,
+      allow_clear BOOLEAN DEFAULT TRUE
     )
   `)
+
+  // Tambahkan kolom allow_clear jika belum ada (untuk database lama)
+  await db.query(`
+    ALTER TABLE server_configs ADD COLUMN IF NOT EXISTS allow_clear BOOLEAN DEFAULT TRUE
+  `).catch(() => {})
 }
 
 export async function isAllowedChannel(guildId, channelId) {
@@ -85,5 +91,22 @@ export async function setPersonality(guildId, personality) {
     `INSERT INTO server_configs (guild_id, personality) VALUES (?, ?)
      ON DUPLICATE KEY UPDATE personality = ?`,
     [guildId, personality, personality]
+  )
+}
+
+export async function getAllowClear(guildId) {
+  const [rows] = await db.query(
+    `SELECT allow_clear FROM server_configs WHERE guild_id = ?`,
+    [guildId]
+  )
+  // Default: true (user boleh hapus)
+  return rows.length > 0 ? Boolean(rows[0].allow_clear) : true
+}
+
+export async function setAllowClear(guildId, allow) {
+  await db.query(
+    `INSERT INTO server_configs (guild_id, allow_clear) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE allow_clear = ?`,
+    [guildId, allow, allow]
   )
 }

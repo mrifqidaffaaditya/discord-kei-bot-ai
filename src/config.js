@@ -10,7 +10,8 @@ export const CONFIG = {
   // Ini hanya dipakai sebagai fallback jika belum setup via command.
   allowedChannels: process.env.ALLOWED_CHANNELS ? process.env.ALLOWED_CHANNELS.split(',') : [],
 
-  // Daftar user ID yang memiliki akses admin (wajib)
+  // Bot Owner IDs — hanya untuk fitur debug, bukan admin server
+  // Admin server ditentukan oleh permission Discord "Manage Server"
   adminIds: process.env.ADMIN_IDS ? process.env.ADMIN_IDS.split(',') : [],
 
   ai: {

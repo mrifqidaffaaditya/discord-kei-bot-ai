@@ -82,19 +82,13 @@ CREATE DATABASE discord_bot_ai;
 
 > Semua tabel (`histories`, `memories`, `server_channels`, `server_configs`) akan dibuat **otomatis** saat bot pertama kali dijalankan. Anda hanya perlu membuat database-nya saja.
 
-### 5. Daftarkan Slash Commands
-
-```bash
-node src/register-commands.js
-```
-
-> Slash Commands bersifat global dan mungkin memerlukan waktu hingga 1 jam untuk muncul di semua server. Sementara itu, Anda bisa menggunakan text commands (`!ai`).
-
-### 6. Jalankan bot
+### 5. Jalankan bot
 
 ```bash
 node .
 ```
+
+> Slash Commands akan otomatis didaftarkan setiap kali bot dijalankan. Anda juga bisa menggunakan text commands (`!ai`) sebagai alternatif.
 
 ---
 
@@ -110,22 +104,31 @@ node .
 
 ### Daftar Perintah
 
-#### ⚙️ Perintah Admin
+#### 🛡️ Perintah Admin Server *(perlu izin "Manage Server")*
 
 | Slash Command | Text Command | Deskripsi |
 |---|---|---|
 | `/setup` | `!ai setup` | Izinkan bot merespons di channel ini |
 | `/remove-channel` | `!ai remove-channel` | Hapus izin bot di channel ini |
 | `/set-personality <teks>` | `!ai set-personality <teks>` | Ubah sifat/instruksi bot untuk server ini |
+| `/toggle-clear` | `!ai toggle-clear` | Izinkan/larang user menghapus data mereka |
+| `/purge-server` | `!ai purge-server` | Hapus SEMUA data memory & history di server |
+
+#### 🔑 Perintah Bot Owner *(ADMIN_IDS di .env)*
+
+| Slash Command | Text Command | Deskripsi |
+|---|---|---|
 | `/debug` | `!ai debug` | Toggle mode debug (latency & token usage) |
 
 #### 👤 Perintah User
 
 | Slash Command | Text Command | Deskripsi |
 |---|---|---|
-| `/clear-memory` | `!ai clear-memory` | Hapus semua memory bot tentang kamu |
-| `/clear-history` | `!ai clear-history` | Hapus riwayat obrolan kamu dengan bot |
+| `/clear-memory` | `!ai clear-memory` | Hapus memory bot tentang kamu* |
+| `/clear-history` | `!ai clear-history` | Hapus riwayat obrolan kamu* |
 | `/help` | `!ai help` | Tampilkan daftar perintah |
+
+> *\*Di server, fitur clear bisa dinonaktifkan oleh Admin Server via `/toggle-clear`. Di DM, user selalu bisa menghapus data mereka.*
 
 ### Contoh Penggunaan
 
@@ -240,7 +243,7 @@ Bot menggunakan 4 tabel MySQL:
 | `server_channels` | Daftar channel yang diizinkan per server |
 | `server_configs` | Konfigurasi per server (personality, dll) |
 
-> Tabel `server_channels` dan `server_configs` dibuat otomatis. Tabel `histories` dan `memories` harus dibuat manual (lihat langkah instalasi).
+> Semua tabel dibuat otomatis saat bot pertama kali dijalankan.
 
 ---
 
@@ -249,8 +252,9 @@ Bot menggunakan 4 tabel MySQL:
 - **Memory tersanitasi** — Input dari AI divalidasi sebelum disimpan ke database (panjang key max 100 char, value max 500 char).
 - **Parameterized queries** — Semua query SQL menggunakan parameterized queries untuk mencegah SQL injection.
 - **Isolasi data** — Data memory dan history terpisah per user per server.
-- **Admin-only commands** — Command sensitif (setup, personality, debug) hanya bisa dijalankan oleh admin.
-- **Ephemeral responses** — Respons slash command admin bersifat ephemeral (hanya terlihat oleh admin).
+- **Dua level admin** — Admin Server (permission Discord) untuk konfigurasi server, Bot Owner (ADMIN_IDS) untuk debug.
+- **Kontrol penghapusan data** — Admin server bisa melarang user menghapus history/memory via toggle-clear.
+- **Ephemeral responses** — Respons slash command admin bersifat ephemeral (hanya terlihat oleh pengirim).
 
 ---
 

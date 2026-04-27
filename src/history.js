@@ -48,3 +48,10 @@ export async function clearHistory(guildId, userId) {
     [guildId, userId]
   )
 }
+
+export async function clearServerHistory(guildId) {
+  await db.query(
+    `DELETE FROM histories WHERE guild_id=?`,
+    [guildId]
+  )
+}
