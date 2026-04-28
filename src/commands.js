@@ -3,7 +3,7 @@ import { clearHistory } from './history.js'
 import { addAllowedChannel, removeAllowedChannel, setPersonality, getAllowClear, setAllowClear } from './db.js'
 import { MessageFlags, PermissionFlagsBits } from 'discord.js'
 
-const HELP_TEXT = `**🤖 Kei Bot AI — Daftar Perintah**
+const HELP_TEXT = `**🤖 AiKei Bot — Daftar Perintah**
 
 💬 **Chat dengan Bot**
 > Mention bot atau chat langsung di channel yang sudah di-setup

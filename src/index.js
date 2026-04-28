@@ -1,4 +1,4 @@
-import { Client, Events, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder } from 'discord.js'
+import { Client, Events, GatewayIntentBits, Partials, REST, Routes, SlashCommandBuilder, ActivityType } from 'discord.js'
 import { CONFIG } from './config.js'
 import { getServerMemory, upsertMemory } from './memory.js'
 import { addHistory, getHistory } from './history.js'
@@ -35,6 +35,8 @@ function splitMessage(text, maxLength = MAX_MSG_LENGTH) {
 client.once(Events.ClientReady, async () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`)
   console.log(`[Bot] Serving ${client.guilds.cache.size} server(s)`)
+
+  client.user.setActivity('!ai help', { type: ActivityType.Watching })
 
   try {
     await initDb()

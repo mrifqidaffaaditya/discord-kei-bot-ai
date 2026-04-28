@@ -1,4 +1,4 @@
-# 🤖 Kei Bot AI — Discord AI Chatbot
+# 🤖 AiKei Bot — Discord AI Chatbot
 
 Bot Discord AI dengan kemampuan memory jangka panjang, konfigurasi per-server, dan personality yang bisa dikustomisasi. Dibangun menggunakan **Discord.js v14**, **OpenAI-compatible API**, dan **MySQL**.
 
@@ -184,7 +184,7 @@ Memory bersifat **per-user per-server**, artinya data yang disimpan di Server A 
 ## 🏗️ Struktur Proyek
 
 ```
-discord-kei-bot-ai/
+discord-aikei-bot/
 ├── .env                    # Konfigurasi environment (RAHASIA)
 ├── .env.example            # Template konfigurasi
 ├── .gitignore              # File yang diabaikan git
