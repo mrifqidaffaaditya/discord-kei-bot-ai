@@ -13,7 +13,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages
   ],
-  partials: [Partials.Channel]
+  partials: [Partials.Channel, Partials.Message, Partials.User, Partials.GuildMember]
 })
 
 let debugMode = false
@@ -82,7 +82,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (msg) => {
   if (msg.author.bot) return
 
-  const isDM = msg.channel.isDMBased()
+  const isDM = !msg.guild
   const guildId = isDM ? `dm_${msg.author.id}` : msg.guild.id
   const userId = msg.author.id
   const userTag = isDM ? msg.author.username : (msg.member?.displayName || msg.author.displayName || msg.author.username)
