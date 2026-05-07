@@ -32,6 +32,36 @@ function splitMessage(text, maxLength = MAX_MSG_LENGTH) {
   return chunks
 }
 
+// 🔄 Console spinner animation
+const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+function startSpinner(label) {
+  let i = 0
+  const id = setInterval(() => {
+    process.stdout.write(`\r${SPINNER_FRAMES[i % SPINNER_FRAMES.length]} ${label}`)
+    i++
+  }, 80)
+  return {
+    update(newLabel) { label = newLabel },
+    stop(finalMsg) {
+      clearInterval(id)
+      process.stdout.write(`\r✅ ${finalMsg}\n`)
+    },
+    fail(errMsg) {
+      clearInterval(id)
+      process.stdout.write(`\r❌ ${errMsg}\n`)
+    }
+  }
+}
+
+// 🔤 Keep Discord typing indicator alive (expires every 10s)
+function startTypingLoop(channel) {
+  channel.sendTyping().catch(() => {})
+  const id = setInterval(() => {
+    channel.sendTyping().catch(() => {})
+  }, 8000)
+  return () => clearInterval(id)
+}
+
 client.once(Events.ClientReady, async () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`)
   console.log(`[Bot] Serving ${client.guilds.cache.size} server(s)`)
@@ -122,70 +152,80 @@ client.on(Events.MessageCreate, async (msg) => {
     if (!cleanInput) return
 
     console.log(`[Message] Processing from ${msg.author.tag} (${userTag}) in ${guildId}`)
-    await msg.channel.sendTyping()
+    const stopTyping = startTypingLoop(msg.channel)
+    const spinner = startSpinner(`[${userTag}] Mengambil data...`)
 
-    const serverMemory = await getServerMemory(guildId)
-    const history = await getHistory(guildId)
-    const taggedInput = `[${userTag}]: ${cleanInput}`
+    try {
+      const serverMemory = await getServerMemory(guildId)
+      const history = await getHistory(guildId)
+      const taggedInput = `[${userTag}]: ${cleanInput}`
 
-    await addHistory(guildId, "user", taggedInput, userTag)
+      await addHistory(guildId, "user", taggedInput, userTag)
 
-    const start = Date.now()
+      const start = Date.now()
 
-    let serverPersonality = CONFIG.personality
-    if (!isDM) {
-      const customPersonality = await getPersonality(guildId)
-      if (customPersonality) serverPersonality = customPersonality
-    }
+      let serverPersonality = CONFIG.personality
+      if (!isDM) {
+        const customPersonality = await getPersonality(guildId)
+        if (customPersonality) serverPersonality = customPersonality
+      }
 
-    // Build userTagMap from memory + current user
-    const userTagMap = { [userId]: userTag }
-    const uniqueUserIds = [...new Set(serverMemory.map(m => m.user_id))]
-    if (!isDM && msg.guild) {
-      for (const uid of uniqueUserIds) {
-        if (!userTagMap[uid]) {
-          try {
-            const member = await msg.guild.members.fetch(uid).catch(() => null)
-            if (member) userTagMap[uid] = member.displayName || member.user.username
-          } catch { /* skip */ }
+      // Build userTagMap from memory + current user
+      const userTagMap = { [userId]: userTag }
+      const uniqueUserIds = [...new Set(serverMemory.map(m => m.user_id))]
+      if (!isDM && msg.guild) {
+        for (const uid of uniqueUserIds) {
+          if (!userTagMap[uid]) {
+            try {
+              const member = await msg.guild.members.fetch(uid).catch(() => null)
+              if (member) userTagMap[uid] = member.displayName || member.user.username
+            } catch { /* skip */ }
+          }
         }
       }
-    }
 
-    const ai = await generateReply({
-      system: serverPersonality,
-      history,
-      memory: serverMemory,
-      userInput: taggedInput,
-      userTagMap,
-      debug: debugMode
-    })
+      spinner.update(`[${userTag}] Generating AI reply...`)
+      const ai = await generateReply({
+        system: serverPersonality,
+        history,
+        memory: serverMemory,
+        userInput: taggedInput,
+        userTagMap,
+        debug: debugMode
+      })
 
-    // Extract memory hanya jika pesan mengandung info yang layak disimpan
-    let newMem = []
-    if (shouldExtractMemory(cleanInput)) {
-      const userMemoryOnly = serverMemory.filter(m => m.user_id === userId)
-      newMem = await extractMemory(cleanInput, ai.text, userMemoryOnly, userTag)
-      if (newMem.length) {
-        console.log(`[Memory] Extracted ${newMem.length} for ${userTag}:`, newMem.map(m => `${m.key}=${m.value}`).join(', '))
-        await upsertMemory(guildId, userId, newMem)
+      // Extract memory hanya jika pesan mengandung info yang layak disimpan
+      let newMem = []
+      if (shouldExtractMemory(cleanInput)) {
+        spinner.update(`[${userTag}] Extracting memory...`)
+        const userMemoryOnly = serverMemory.filter(m => m.user_id === userId)
+        newMem = await extractMemory(cleanInput, ai.text, userMemoryOnly, userTag)
+        if (newMem.length) {
+          console.log(`\n[Memory] Extracted ${newMem.length} for ${userTag}:`, newMem.map(m => `${m.key}=${m.value}`).join(', '))
+          await upsertMemory(guildId, userId, newMem)
+        }
       }
+
+      await addHistory(guildId, "assistant", ai.text, "Bot")
+
+      let replyText = ai.text
+      if (debugMode) {
+        replyText += `\n\n\`\`\`\nDEBUG\ntokens: ${JSON.stringify(ai.usage)}\nlatency: ${Date.now() - start}ms\nmemory_count: ${serverMemory.length}\nmemory_added: ${JSON.stringify(newMem)}\n\`\`\``
+      }
+
+      stopTyping()
+      spinner.stop(`[${userTag}] Replied (${Date.now() - start}ms)`)
+
+      const chunks = splitMessage(replyText)
+      await msg.reply(chunks[0])
+      for (let i = 1; i < chunks.length; i++) {
+        await msg.channel.send(chunks[i])
+      }
+    } catch (innerErr) {
+      stopTyping()
+      spinner.fail(`[${userTag}] Error: ${innerErr.message}`)
+      throw innerErr
     }
-
-    await addHistory(guildId, "assistant", ai.text, "Bot")
-
-    let replyText = ai.text
-    if (debugMode) {
-      replyText += `\n\n\`\`\`\nDEBUG\ntokens: ${JSON.stringify(ai.usage)}\nlatency: ${Date.now() - start}ms\nmemory_count: ${serverMemory.length}\nmemory_added: ${JSON.stringify(newMem)}\n\`\`\``
-    }
-
-    const chunks = splitMessage(replyText)
-    await msg.reply(chunks[0])
-    for (let i = 1; i < chunks.length; i++) {
-      await msg.channel.send(chunks[i])
-    }
-
-    console.log(`[Message] Replied to ${msg.author.tag} (${Date.now() - start}ms)`)
   } catch (error) {
     console.error("[messageCreate] Error:", error)
     await msg.reply("❌ Terjadi kesalahan saat memproses pesan.").catch(console.error)
