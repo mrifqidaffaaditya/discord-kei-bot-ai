@@ -36,19 +36,70 @@ function formatServerMemory(memoryRows, userTagMap = {}) {
   return lines.join('\n')
 }
 
+/**
+ * Compress history: pesan lama di-truncate untuk hemat token.
+ * - 5 pesan terakhir tetap utuh (konteks terkini penting)
+ * - Pesan lebih lama di-truncate ke max 200 karakter
+ */
+function compressHistory(history) {
+  if (history.length <= 6) return history
+
+  const recentCount = 5
+  const older = history.slice(0, -recentCount)
+  const recent = history.slice(-recentCount)
+
+  const compressed = older.map(msg => ({
+    role: msg.role,
+    content: msg.content.length > 200
+      ? msg.content.slice(0, 200) + '...'
+      : msg.content
+  }))
+
+  return [...compressed, ...recent]
+}
+
+/**
+ * Compress memory: batasi jumlah entry & truncate value panjang.
+ * - Max 30 entries total
+ * - Value di-truncate ke 150 karakter
+ */
+function compressMemory(memoryRows) {
+  if (!memoryRows || memoryRows.length === 0) return memoryRows
+  const limited = memoryRows.slice(0, 30)
+  return limited.map(row => ({
+    ...row,
+    value: row.value.length > 150 ? row.value.slice(0, 150) + '...' : row.value
+  }))
+}
+
+/**
+ * Cek apakah pesan layak untuk di-extract memory-nya.
+ * Skip pesan trivial/pendek yang tidak mengandung info personal.
+ */
+export function shouldExtractMemory(text) {
+  const clean = text.replace(/[^\w\s]/g, '').trim()
+  if (clean.length < 10) return false
+  const trivial = /^(h(a|e|i)+|ok(e|ay)?|wk+|lol|hmm+|yoi?|iya|gak?|nah|oke?|siap|mantap|bet(ul)?|gas|wow|gg|bruh|damn|nice|keren|gpp?|udah|belum|bisa|dong|anj(ir|ay)|bang|min|bot|makasih|thanks?|thx|sorry|maaf|heh+|ya|yaa+|gitu|oh|ah|eh|uh)$/i
+  if (trivial.test(clean)) return false
+  return true
+}
+
 export async function generateReply({ system, history, memory, userInput, userTagMap = {}, debug = false }) {
   try {
-    const memoryText = formatServerMemory(memory, userTagMap)
+    const compressedMemory = compressMemory(memory)
+    const memoryText = formatServerMemory(compressedMemory, userTagMap)
     const memorySection = memoryText
-      ? `\n\nMemory server (info tentang user-user di server ini):\n${memoryText}`
+      ? `\n\nMemory server (info user di server ini):\n${memoryText}`
       : ''
+
+    const compressedHistory = compressHistory(history)
 
     const messages = [
       {
         role: "system",
         content: `${system}${memorySection}`
       },
-      ...history,
+      ...compressedHistory,
       { role: "user", content: userInput }
     ]
 
@@ -56,6 +107,7 @@ export async function generateReply({ system, history, memory, userInput, userTa
       model: CONFIG.ai.model,
       temperature: CONFIG.ai.temperature,
       max_tokens: CONFIG.ai.maxTokens,
+      max_completion_tokens: CONFIG.ai.maxTokens,
       messages
     })
 
@@ -79,51 +131,25 @@ export async function extractMemory(userInput, aiReply = '', existingMemory = []
       : `${userTag}: ${userInput}`
 
     // Filter existing memory hanya untuk user ini (hemat token)
+    // Truncate existing memory text untuk hemat token
     const existingMemoryText = existingMemory.length > 0
-      ? `\n\nMemory yang SUDAH tersimpan untuk ${userTag}:\n${existingMemory.map(m => `${m.key}: ${m.value}`).join(' | ')}`
-      : `\n\nBelum ada memory tersimpan untuk ${userTag}.`
+      ? `\nMemory ${userTag}: ${existingMemory.slice(0, 15).map(m => `${m.key}:${m.value.slice(0, 80)}`).join('|')}`
+      : ''
 
     const res = await client.chat.completions.create({
       model: CONFIG.ai.model,
       temperature: 0,
-      max_tokens: 500,
+      max_tokens: 300,
+      max_completion_tokens: 300,
       messages: [
         {
           role: "system",
-          content: `Kamu adalah sistem ekstraksi memory. Analisis percakapan berikut dan tentukan memory apa yang perlu DITAMBAHKAN atau DIUPDATE untuk user "${userTag}".
-${existingMemoryText}
+          content: `Ekstrak memory dari percakapan untuk user "${userTag}".${existingMemoryText}
 
-ATURAN:
-1. Jika ada info BARU yang belum ada di memory → TAMBAHKAN
-2. Jika ada info yang BERUBAH dari memory lama → UPDATE (gunakan key yang sama)
-3. Jangan ulangi memory lama yang tidak berubah
-4. Hanya return entry yang BARU atau BERUBAH
-5. Semua memory ini tentang user "${userTag}" — fokus pada info tentang mereka
-
-WAJIB simpan jika ada:
-- Nama, panggilan, nickname, umur, gender
-- Lokasi, kota, negara, timezone
-- Pekerjaan, sekolah, jurusan, hobi, skill
-- Preferensi (makanan, musik, warna, game, bahasa, dll)
-- Fakta personal (punya hewan, kendaraan, rumah, dll)
-- Perasaan, mood, kondisi saat ini
-- Rencana, tujuan, mimpi, target
-- Orang-orang penting (pacar, teman, keluarga)
-- Opini kuat tentang sesuatu
-- Pengalaman unik atau cerita personal
-- Kebiasaan atau rutinitas
-- Masalah atau keluhan yang sedang dihadapi
-- Teknologi, tools, bahasa programming yang dipakai
-- Apapun yang membuat user ini unik dan personal
-
-Return HANYA JSON array (tanpa markdown, tanpa backtick, tanpa teks lain):
-[{"key": "kategori_singkat", "value": "detail informasi"}]
-
-Gunakan key yang deskriptif dan konsisten (snake_case).
-Contoh key: nama, umur, kota, hobi, makanan_favorit, pekerjaan, bahasa_program
-
-Jika BENAR-BENAR tidak ada info baru atau berubah, return: []
-Lebih baik menyimpan terlalu banyak daripada melewatkan sesuatu yang penting.`
+Aturan: Hanya return info BARU/BERUBAH. Jangan ulangi yang sudah ada.
+Simpan: nama, umur, lokasi, pekerjaan, hobi, preferensi, fakta personal, rencana, relasi, opini, kebiasaan, skill, masalah.
+Return JSON array saja: [{"key":"snake_case","value":"detail"}]
+Tidak ada info baru? Return: []`
         },
         { role: "user", content: conversationContext }
       ]

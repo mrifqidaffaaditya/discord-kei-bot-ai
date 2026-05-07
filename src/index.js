@@ -2,7 +2,7 @@ import { Client, Events, GatewayIntentBits, Partials, REST, Routes, SlashCommand
 import { CONFIG } from './config.js'
 import { getServerMemory, upsertMemory } from './memory.js'
 import { addHistory, getHistory } from './history.js'
-import { generateReply, extractMemory } from './ai.js'
+import { generateReply, extractMemory, shouldExtractMemory } from './ai.js'
 import { handleInteraction, handleLegacyCommand } from './commands.js'
 import { initDb, isAllowedChannel, getPersonality } from './db.js'
 
@@ -161,12 +161,15 @@ client.on(Events.MessageCreate, async (msg) => {
       debug: debugMode
     })
 
-    // Extract memory hanya untuk user yang sedang chat (hemat token)
-    const userMemoryOnly = serverMemory.filter(m => m.user_id === userId)
-    const newMem = await extractMemory(cleanInput, ai.text, userMemoryOnly, userTag)
-    if (newMem.length) {
-      console.log(`[Memory] Extracted ${newMem.length} for ${userTag}:`, newMem.map(m => `${m.key}=${m.value}`).join(', '))
-      await upsertMemory(guildId, userId, newMem)
+    // Extract memory hanya jika pesan mengandung info yang layak disimpan
+    let newMem = []
+    if (shouldExtractMemory(cleanInput)) {
+      const userMemoryOnly = serverMemory.filter(m => m.user_id === userId)
+      newMem = await extractMemory(cleanInput, ai.text, userMemoryOnly, userTag)
+      if (newMem.length) {
+        console.log(`[Memory] Extracted ${newMem.length} for ${userTag}:`, newMem.map(m => `${m.key}=${m.value}`).join(', '))
+        await upsertMemory(guildId, userId, newMem)
+      }
     }
 
     await addHistory(guildId, "assistant", ai.text, "Bot")
