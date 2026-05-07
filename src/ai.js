@@ -74,12 +74,14 @@ function compressMemory(memoryRows) {
 
 /**
  * Cek apakah pesan layak untuk di-extract memory-nya.
- * Skip pesan trivial/pendek yang tidak mengandung info personal.
+ * Agresif: hanya skip pesan yang BENAR-BENAR tidak bermakna.
  */
 export function shouldExtractMemory(text) {
   const clean = text.replace(/[^\w\s]/g, '').trim()
-  if (clean.length < 10) return false
-  const trivial = /^(h(a|e|i)+|ok(e|ay)?|wk+|lol|hmm+|yoi?|iya|gak?|nah|oke?|siap|mantap|bet(ul)?|gas|wow|gg|bruh|damn|nice|keren|gpp?|udah|belum|bisa|dong|anj(ir|ay)|bang|min|bot|makasih|thanks?|thx|sorry|maaf|heh+|ya|yaa+|gitu|oh|ah|eh|uh)$/i
+  // Hanya skip jika terlalu pendek (< 4 karakter bersih)
+  if (clean.length < 4) return false
+  // Hanya skip reaksi murni 1 kata tanpa info
+  const trivial = /^(h(a|e|i)+|ok|wk+|lol|hmm+|gg|bruh|wow|heh+|oh|ah|eh|uh|ya|nah)$/i
   if (trivial.test(clean)) return false
   return true
 }
@@ -144,12 +146,17 @@ export async function extractMemory(userInput, aiReply = '', existingMemory = []
       messages: [
         {
           role: "system",
-          content: `Ekstrak memory dari percakapan untuk user "${userTag}".${existingMemoryText}
+          content: `Ekstrak memory AGRESIF dari percakapan untuk user "${userTag}".${existingMemoryText}
 
-Aturan: Hanya return info BARU/BERUBAH. Jangan ulangi yang sudah ada.
-Simpan: nama, umur, lokasi, pekerjaan, hobi, preferensi, fakta personal, rencana, relasi, opini, kebiasaan, skill, masalah.
-Return JSON array saja: [{"key":"snake_case","value":"detail"}]
-Tidak ada info baru? Return: []`
+Aturan: Return info BARU/BERUBAH saja. Jangan ulangi yang sudah ada.
+Bersikap AGRESIF — tangkap semua info termasuk yang IMPLISIT:
+- Info eksplisit: nama, umur, lokasi, pekerjaan, hobi, skill, preferensi, relasi
+- Info implisit: mood/perasaan dari nada bicara, opini dari komentar singkat, kebiasaan dari konteks, minat dari topik yang dibahas
+- Konteks: apa yang sedang dilakukan, game yang dimainkan, masalah yang dihadapi, teknologi yang dipakai
+- Bahkan dari kalimat pendek seperti "lagi ngoding" → simpan {aktivitas: "sedang ngoding"}
+Lebih baik simpan TERLALU BANYAK daripada melewatkan.
+Return JSON array: [{"key":"snake_case","value":"detail"}]
+Tidak ada info? Return: []`
         },
         { role: "user", content: conversationContext }
       ]
