@@ -127,7 +127,8 @@ client.on(Events.MessageCreate, async (msg) => {
   }
 
   let isSetupChannel = false
-  const isMentioned = msg.mentions.has(client.user)
+  // Only trigger on direct @bot mention, ignore @everyone/@here/role mentions
+  const isMentioned = msg.mentions.users.has(client.user.id)
 
   if (!isDM) {
     isSetupChannel = await isAllowedChannel(guildId, msg.channel.id)
@@ -209,6 +210,12 @@ client.on(Events.MessageCreate, async (msg) => {
       await addHistory(guildId, "assistant", ai.text, "Bot")
 
       let replyText = ai.text
+
+      // Guard against empty AI response
+      if (!replyText || !replyText.trim()) {
+        replyText = "🤔 Hmm, aku nggak bisa merespon itu. Coba lagi ya!"
+      }
+
       if (debugMode) {
         replyText += `\n\n\`\`\`\nDEBUG\ntokens: ${JSON.stringify(ai.usage)}\nlatency: ${Date.now() - start}ms\nmemory_count: ${serverMemory.length}\nmemory_added: ${JSON.stringify(newMem)}\n\`\`\``
       }
@@ -217,7 +224,13 @@ client.on(Events.MessageCreate, async (msg) => {
       spinner.stop(`[${userTag}] Replied (${Date.now() - start}ms)`)
 
       const chunks = splitMessage(replyText)
-      await msg.reply(chunks[0])
+      // Try msg.reply first; if the original message was deleted, fallback to channel.send
+      try {
+        await msg.reply(chunks[0])
+      } catch (replyErr) {
+        console.warn(`[Reply] Fallback to channel.send: ${replyErr.message}`)
+        await msg.channel.send(chunks[0])
+      }
       for (let i = 1; i < chunks.length; i++) {
         await msg.channel.send(chunks[i])
       }
@@ -228,7 +241,12 @@ client.on(Events.MessageCreate, async (msg) => {
     }
   } catch (error) {
     console.error("[messageCreate] Error:", error)
-    await msg.reply("❌ Terjadi kesalahan saat memproses pesan.").catch(console.error)
+    // Try reply, fallback to channel.send if original message was deleted
+    try {
+      await msg.reply("❌ Terjadi kesalahan saat memproses pesan.")
+    } catch {
+      await msg.channel.send("❌ Terjadi kesalahan saat memproses pesan.").catch(console.error)
+    }
   }
 })
 
