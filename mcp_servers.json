@@ -15,8 +15,10 @@
     {
       "name": "openbrowser",
       "type": "stdio",
-      "command": "~/.local/bin/openbrowser-ai",
+      "command": "python3",
       "args": [
+        "-c",
+        "from openbrowser.cli import main; main()",
         "--mcp"
       ],
       "enabled": true,
