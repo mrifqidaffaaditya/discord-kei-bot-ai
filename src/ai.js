@@ -272,8 +272,16 @@ Cantumkan link sumber di jawaban akhir.
           const resStr = typeof toolResult === 'object' ? JSON.stringify(toolResult) : String(toolResult)
           console.log(`[TOOL_CALL][SUCCESS] Tool: ${toolName} | Output size: ${resStr.length} chars | ${duration}ms`)
 
+          // Kumpulkan attachments (file/screenshot)
           if (toolResult && toolResult.isAttachment && toolResult.filepath) {
+            // Single attachment (download_file, dsb.)
             attachments.push(toolResult)
+          }
+          if (toolResult && Array.isArray(toolResult.attachments)) {
+            // Multiple attachments (navigate_web screenshots)
+            for (const att of toolResult.attachments) {
+              if (att.filepath && att.isAttachment) attachments.push(att)
+            }
           }
 
           toolSequence.push(toolName)

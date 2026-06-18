@@ -273,7 +273,7 @@ client.on(Events.MessageCreate, async (msg) => {
       const TOOL_ICONS = {
         web_search:       '🔍',
         fetch_url:        '🌐',
-        navigate_web:     '🧭',
+        navigate_web:     '🖥️',
         run_code:         '💻',
         file_operation:   '📁',
         download_file:    '📥',
@@ -294,8 +294,16 @@ client.on(Events.MessageCreate, async (msg) => {
           try { return `\`${new URL(args.url).hostname}\`` } catch { return `\`${String(args.url).slice(0, 40)}\`` }
         }
         if (toolName === 'navigate_web') {
-          const step = args.steps?.[0]
-          return step?.url ? `\`${String(step.url).slice(0, 50)}\`` : ''
+          const steps = args.steps || []
+          if (steps.length === 0) return ''
+          const firstAction = steps[0].action || ''
+          const hasScreenshot = steps.some(s => s.action === 'screenshot')
+          const firstUrl = steps.find(s => s.url)?.url || ''
+          let preview = `\`${firstAction}\``
+          if (firstUrl) { try { preview += ` \`${new URL(firstUrl).hostname}\`` } catch {} }
+          if (hasScreenshot) preview += ' 📷'
+          preview += steps.length > 1 ? ` +${steps.length - 1} aksi` : ''
+          return preview
         }
         if (toolName === 'run_code') return `lang: \`${args.language || 'js'}\``
         if (toolName === 'file_operation') return `\`${args.operation || ''}\` → \`${String(args.path || '').slice(0, 30)}\``
