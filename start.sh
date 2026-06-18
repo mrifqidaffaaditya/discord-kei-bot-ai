@@ -8,6 +8,9 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Memulai Inisialisasi Kei Agent Bot ===${NC}"
 
+# Bypassing duplicate browser downloads during npm install to save disk quota
+export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
 # 1. Validasi & Instalasi Dependensi Node.js
 if [ ! -d "node_modules" ]; then
     echo -e "${YELLOW}[Node.js] Folder node_modules tidak ditemukan. Memasang dependensi...${NC}"
