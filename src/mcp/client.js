@@ -84,6 +84,11 @@ export async function createMcpClient(serverConfig) {
       command = command.replace('~', home)
     }
 
+    console.log(`[MCP][${serverConfig.name}] Spawning: "${command}" with args: ${JSON.stringify(resolvedArgs)}`)
+    console.log(`[MCP][${serverConfig.name}] Environment - PYTHONPATH: "${mcpEnv.PYTHONPATH}"`)
+    console.log(`[MCP][${serverConfig.name}] Environment - HOME: "${mcpEnv.HOME}"`)
+    console.log(`[MCP][${serverConfig.name}] Environment - PATH: "${mcpEnv.PATH}"`)
+
     transport = new StdioClientTransport({
       command,
       args: resolvedArgs,

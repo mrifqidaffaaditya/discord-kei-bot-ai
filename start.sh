@@ -39,6 +39,8 @@ if [ $? -ne 0 ]; then
     fi
 else
     echo -e "${GREEN}[Python] Paket openbrowser dan mcp sudah siap.${NC}"
+    echo -e "${GREEN}[Python] Lokasi openbrowser: $(python3 -c "import openbrowser; print(openbrowser.__file__)" 2>/dev/null || echo "tidak ditemukan")${NC}"
+    echo -e "${GREEN}[Python] sys.path: $(python3 -c "import sys; print(sys.path)" 2>/dev/null)${NC}"
     # Validasi/install browser jika belum lengkap
     echo -e "${YELLOW}[Python] Memvalidasi dependensi browser Chromium...${NC}"
     python3 -m playwright install chromium
