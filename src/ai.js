@@ -112,6 +112,18 @@ export async function generateReply({
 
     dynamicSystemPrompt += memorySection
 
+    // Tambahkan instruksi operasional untuk pencarian web & kunjungan website otomatis
+    const agentOperationalInstructions = `
+
+=== PETUNJUK OPERASIONAL ALUR KERJA PENCARIAN (PENTING) ===
+Apabila Anda perlu mencari informasi di internet (menggunakan tool 'web_search'):
+1. Anda WAJIB mengambil langkah kedua yaitu mengunjungi/membuka URL hasil pencarian yang relevan tersebut menggunakan tool 'fetch_url' (atau 'navigate_web' jika situs membutuhkan rendering JavaScript) untuk membaca konten aslinya secara utuh. JANGAN hanya mengandalkan snippet teks singkat yang muncul di hasil pencarian.
+2. Anda WAJIB mengunjungi BEBERAPA (multiple) URL hasil pencarian (minimal 2 hingga 3 website berbeda) untuk membandingkan informasi, melakukan verifikasi silang (cross-check), dan memastikan data yang diperoleh akurat, detail, objektif, serta tidak sepihak.
+3. Kumpulkan informasi secara agresif dan detail dari halaman-halaman tersebut sebelum merumuskan jawaban akhir Anda.
+4. Tuliskan jawaban akhir Anda secara terstruktur, lengkap, presisi, dan cantumkan link sumber/referensi yang dikunjungi agar pengguna dapat memverifikasinya sendiri.`
+
+    dynamicSystemPrompt += agentOperationalInstructions
+
     const compressedHistory = compressHistory(history)
 
     const messages = [
