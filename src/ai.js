@@ -116,11 +116,14 @@ export async function generateReply({
     const agentOperationalInstructions = `
 
 === PETUNJUK OPERASIONAL ALUR KERJA PENCARIAN (PENTING) ===
-Apabila Anda perlu mencari informasi di internet (menggunakan tool 'web_search'):
-1. Anda WAJIB mengambil langkah kedua yaitu mengunjungi/membuka URL hasil pencarian yang relevan tersebut menggunakan tool 'fetch_url' (atau 'navigate_web' jika situs membutuhkan rendering JavaScript) untuk membaca konten aslinya secara utuh. JANGAN hanya mengandalkan snippet teks singkat yang muncul di hasil pencarian.
-2. Anda WAJIB mengunjungi BEBERAPA (multiple) URL hasil pencarian (minimal 2 hingga 3 website berbeda) untuk membandingkan informasi, melakukan verifikasi silang (cross-check), dan memastikan data yang diperoleh akurat, detail, objektif, serta tidak sepihak.
-3. Kumpulkan informasi secara agresif dan detail dari halaman-halaman tersebut sebelum merumuskan jawaban akhir Anda.
-4. Tuliskan jawaban akhir Anda secara terstruktur, lengkap, presisi, dan cantumkan link sumber/referensi yang dikunjungi agar pengguna dapat memverifikasinya sendiri.`
+Tool 'web_search' sudah OTOMATIS mengunjungi dan membaca konten penuh dari 3 URL teratas di setiap pencarian (field 'full_content' dalam hasil).
+
+Panduan penggunaan:
+1. MANFAATKAN 'full_content' — baca konten lengkap dari setiap hasil yang sudah di-fetch, bukan hanya 'snippet'.
+2. CROSS-CHECK — bandingkan informasi dari beberapa sumber yang sudah di-fetch untuk memastikan akurasi dan objektivitas.
+3. FETCH TAMBAHAN — jika ada URL relevan lain yang belum diambil (belum ada full_content-nya), gunakan tool 'fetch_url' secara eksplisit untuk membacanya.
+4. JANGAN BERHENTI di satu sumber — selalu verifikasi dari minimal 2-3 website berbeda.
+5. JAWABAN AKHIR — tuliskan secara terstruktur, detail, akurat, dan sertakan link referensi dari sumber yang sudah dikunjungi agar pengguna bisa memverifikasi sendiri.`
 
     dynamicSystemPrompt += agentOperationalInstructions
 

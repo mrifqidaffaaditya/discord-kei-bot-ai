@@ -21,8 +21,8 @@
         "from openbrowser.cli import main; main()",
         "--mcp"
       ],
-      "enabled": true,
-      "description": "AI-native browser automation server (OpenBrowser)"
+      "enabled": false,
+      "description": "AI-native browser automation server (OpenBrowser) — dinonaktifkan, gunakan built-in fetch_url & navigate_web"
     }
   ]
 }

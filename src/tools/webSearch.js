@@ -1,10 +1,11 @@
 import axios from 'axios'
 import * as cheerio from 'cheerio'
 import { CONFIG } from '../config.js'
+import { isSafeUrl } from './ssrf.js'
 
 export const definition = {
   name: 'web_search',
-  description: 'Mencari informasi di internet dengan kata kunci tertentu.',
+  description: 'Mencari informasi di internet dan secara otomatis membaca isi dari beberapa website teratas untuk hasil yang akurat dan detail.',
   parameters: {
     type: 'object',
     properties: {
@@ -22,9 +23,75 @@ export const definition = {
         enum: ['web', 'news'],
         description: 'Kategori pencarian: web atau news (khusus provider aikei, default web)',
         default: 'web'
+      },
+      fetch_content: {
+        type: 'boolean',
+        description: 'Jika true, otomatis mengunjungi dan membaca konten dari URL teratas untuk informasi lebih lengkap dan akurat (default true)',
+        default: true
+      },
+      max_fetch: {
+        type: 'integer',
+        description: 'Jumlah URL yang akan di-visit untuk membaca konten (default 3, max 5)',
+        default: 3
       }
     },
     required: ['query']
+  }
+}
+
+/**
+ * Ambil konten dari satu URL, returns null jika gagal
+ */
+async function fetchPageContent(url, maxChars = 6000) {
+  try {
+    if (!(await isSafeUrl(url))) return null
+
+    const response = await axios.get(url, {
+      timeout: 12000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9,id;q=0.8'
+      },
+      maxContentLength: 500 * 1024, // 500KB raw, lalu dipangkas
+      responseType: 'text'
+    })
+
+    const $ = cheerio.load(response.data)
+    const title = $('title').text().trim()
+
+    // Hapus elemen non-konten
+    $('script, style, iframe, noscript, svg, header, footer, nav, aside, .ads, .advertisement, .sidebar, [aria-hidden="true"]').remove()
+
+    // Coba ambil bagian konten utama dulu
+    let contentText = ''
+    const mainSelectors = ['article', 'main', '.content', '.post-content', '.entry-content', '#content', '.article-body', '.post-body']
+    for (const sel of mainSelectors) {
+      const t = $(sel).text().trim()
+      if (t.length > 200) {
+        contentText = t
+        break
+      }
+    }
+
+    // Fallback ke body
+    if (!contentText) {
+      contentText = $('body').text().trim()
+    }
+
+    // Bersihkan whitespace berlebih
+    contentText = contentText
+      .replace(/\t/g, ' ')
+      .replace(/ {2,}/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+      .slice(0, maxChars)
+
+    if (contentText.length < 50) return null
+
+    return { title, content: contentText, url }
+  } catch {
+    return null
   }
 }
 
@@ -32,16 +99,63 @@ export async function run(args) {
   const query = args.query
   const num_results = args.num_results || 5
   const search_type = args.search_type || 'web'
+  const fetch_content = args.fetch_content !== false // default true
+  const max_fetch = Math.min(args.max_fetch || 3, 5)
   const provider = CONFIG.tools.searchProvider
 
+  let searchResults
   if (provider === 'aikei' && CONFIG.tools.aikeiSearchApiKey) {
-    return await searchAiKei(query, num_results, search_type)
+    searchResults = await searchAiKei(query, num_results, search_type)
   } else if (provider === 'brave' && CONFIG.tools.braveSearchApiKey) {
-    return await searchBrave(query, num_results)
+    searchResults = await searchBrave(query, num_results)
   } else if (provider === 'serpapi' && CONFIG.tools.serpapiKey) {
-    return await searchSerpApi(query, num_results)
+    searchResults = await searchSerpApi(query, num_results)
   } else {
-    return await searchDDG(query, num_results)
+    searchResults = await searchDDG(query, num_results)
+  }
+
+  // Jika bukan array atau kosong, return langsung
+  if (!Array.isArray(searchResults) || searchResults.length === 0) {
+    return searchResults
+  }
+
+  // Auto-fetch konten dari URL teratas
+  if (fetch_content) {
+    const urlsToFetch = searchResults.slice(0, max_fetch).map(r => r.url).filter(Boolean)
+    
+    const fetchPromises = urlsToFetch.map(url => fetchPageContent(url))
+    const fetchedContents = await Promise.allSettled(fetchPromises)
+
+    // Gabungkan hasil fetch ke dalam search results
+    const enrichedResults = searchResults.map((result, idx) => {
+      const fetched = idx < fetchedContents.length && fetchedContents[idx].status === 'fulfilled'
+        ? fetchedContents[idx].value
+        : null
+
+      return {
+        title: result.title,
+        url: result.url,
+        snippet: result.snippet || '',
+        ...(fetched ? { full_content: fetched.content } : {})
+      }
+    })
+
+    // Statistik fetch
+    const successCount = fetchedContents.filter(r => r.status === 'fulfilled' && r.value !== null).length
+    console.log(`[web_search] Fetched ${successCount}/${urlsToFetch.length} URLs for query: "${query}"`)
+
+    return {
+      query,
+      total_results: enrichedResults.length,
+      pages_visited: successCount,
+      results: enrichedResults
+    }
+  }
+
+  return {
+    query,
+    total_results: searchResults.length,
+    results: searchResults
   }
 }
 
@@ -50,7 +164,7 @@ async function searchDDG(query, numResults) {
     const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`
     const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
       },
       timeout: 10000
     })
@@ -87,7 +201,6 @@ async function searchDDG(query, numResults) {
       }
     })
 
-    // If scraping fails to find results, return simple message
     if (results.length === 0) {
       return { message: 'Tidak ditemukan hasil pencarian untuk: ' + query }
     }
