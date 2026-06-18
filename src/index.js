@@ -247,30 +247,113 @@ client.on(Events.MessageCreate, async (msg) => {
 
       spinner.update(`[${userTag}] Generating AI reply...`)
 
-      // Kirim pesan sementara "⏳ Sedang memproses..." ke Discord
-      const progressMsg = await msg.reply("⏳ Sedang memproses...").catch(() => null)
-      
-      let currentStep = 1
-      let lastEditTime = Date.now()
-      const editThrottleMs = 5000
-
-      const onIteration = async (step) => {
-        currentStep = step
-        // Hanya update jika jarak edit > 5 detik untuk menghindari rate limit Discord
-        if (Date.now() - lastEditTime > editThrottleMs) {
-          if (progressMsg) {
-            await progressMsg.edit(`⏳ Masih berjalan... [langkah ${step}/${CONFIG.agent.maxIterations}]`).catch(() => {})
-          }
-          lastEditTime = Date.now()
-        }
+      // === TOOL ICON MAP ===
+      const TOOL_ICONS = {
+        web_search:       '🔍',
+        fetch_url:        '🌐',
+        navigate_web:     '🧭',
+        run_code:         '💻',
+        file_operation:   '📁',
+        download_file:    '📥',
+        http_request:     '📡',
+        create_custom_tool: '🛠️',
+      }
+      const getMcpIcon = () => '🔌'
+      const getToolIcon = (name) => {
+        if (name.startsWith('mcp__')) return getMcpIcon()
+        return TOOL_ICONS[name] || '⚙️'
       }
 
-      // Setup update status progress secara reguler per 30 detik
-      const progressInterval = setInterval(async () => {
-        if (progressMsg) {
-          await progressMsg.edit(`⏳ Masih berjalan... [langkah ${currentStep}/${CONFIG.agent.maxIterations}]`).catch(() => {})
+      // === ARGS PREVIEW: buat ringkasan singkat dari args ===
+      function previewArgs(toolName, args) {
+        if (!args || Object.keys(args).length === 0) return ''
+        if (toolName === 'web_search') return `**"${String(args.query || '').slice(0, 60)}"**`
+        if (toolName === 'fetch_url') {
+          try { return `\`${new URL(args.url).hostname}\`` } catch { return `\`${String(args.url).slice(0, 40)}\`` }
         }
-      }, 30000)
+        if (toolName === 'navigate_web') {
+          const step = args.steps?.[0]
+          return step?.url ? `\`${String(step.url).slice(0, 50)}\`` : ''
+        }
+        if (toolName === 'run_code') return `lang: \`${args.language || 'js'}\``
+        if (toolName === 'file_operation') return `\`${args.operation || ''}\` → \`${String(args.path || '').slice(0, 30)}\``
+        if (toolName === 'http_request') return `\`${args.method || 'GET'}\` ${String(args.url || '').slice(0, 40)}`
+        if (toolName === 'download_file') {
+          try { return `\`${new URL(args.url).hostname}\`` } catch { return '' }
+        }
+        if (toolName.startsWith('mcp__')) {
+          const parts = toolName.split('__')
+          return `\`${parts[2] || ''}\``
+        }
+        const first = Object.entries(args)[0]
+        return first ? `\`${String(first[1]).slice(0, 40)}\`` : ''
+      }
+
+      // === REAL-TIME PROGRESS TRACKER ===
+      const progressLog = []   // [{icon, label, argsPreview, status, duration}]
+      let lastProgressEdit = 0
+      const EDIT_THROTTLE_MS = 1500
+      let progressMsg = null // diinit setelah deklarasi fungsi
+
+      function buildProgressText() {
+        const elapsed = Math.round((Date.now() - start) / 1000)
+        const lines = [`⏳ **Memproses...** *(${elapsed}s)*\n`]
+
+        for (const entry of progressLog) {
+          const { icon, label, argsPreview, status, duration } = entry
+          const argStr = argsPreview ? ` — ${argsPreview}` : ''
+
+          if (status === 'running') {
+            lines.push(`${icon} \`${label}\`${argStr}`)
+          } else if (status === 'done') {
+            const durStr = duration ? ` *(${(duration / 1000).toFixed(1)}s)*` : ''
+            lines.push(`✅ ~~\`${label}\`~~${argStr}${durStr}`)
+          } else if (status === 'error') {
+            lines.push(`❌ \`${label}\`${argStr}`)
+          }
+        }
+
+        return lines.join('\n').slice(0, 1900) // safety limit
+      }
+
+      async function flushProgress(force = false) {
+        if (!progressMsg) return
+        const now = Date.now()
+        if (!force && now - lastProgressEdit < EDIT_THROTTLE_MS) return
+        lastProgressEdit = now
+        await progressMsg.edit(buildProgressText()).catch(() => {})
+      }
+
+      // Kirim pesan progress awal
+      progressMsg = await msg.reply('⏳ **Memproses...**').catch(() => null)
+
+      const onIteration = async (step) => {
+        // Update elapsed time secara berkala via iteration
+        await flushProgress()
+      }
+
+      const onToolStart = async (toolName, args, step) => {
+        const icon = getToolIcon(toolName)
+        const argsPreview = previewArgs(toolName, args)
+        progressLog.push({ icon, label: toolName, argsPreview, status: 'running', duration: null })
+        spinner.update(`[${userTag}] Tool: ${toolName}`)
+        await flushProgress(true) // force update saat tool mulai
+      }
+
+      const onToolEnd = async (toolName, result) => {
+        // Cari entry terakhir yang masih 'running' untuk tool ini
+        for (let i = progressLog.length - 1; i >= 0; i--) {
+          if (progressLog[i].label === toolName && progressLog[i].status === 'running') {
+            progressLog[i].status = result.success ? 'done' : 'error'
+            progressLog[i].duration = result.duration
+            break
+          }
+        }
+        await flushProgress(true) // force update saat tool selesai
+      }
+
+      // Setup update elapsed time per 10 detik
+      const progressInterval = setInterval(() => flushProgress(), 10000)
 
       // Menjalankan loop agent dengan limitasi timeout
       const timeoutPromise = new Promise((_, reject) => {
@@ -286,7 +369,9 @@ client.on(Events.MessageCreate, async (msg) => {
         debug: debugMode,
         userId,
         guildId,
-        onIteration
+        onIteration,
+        onToolStart,
+        onToolEnd
       })
 
       let ai
@@ -295,6 +380,7 @@ client.on(Events.MessageCreate, async (msg) => {
       } finally {
         clearInterval(progressInterval)
       }
+
 
       // Extract memory hanya jika pesan mengandung info yang layak disimpan
       let newMem = []

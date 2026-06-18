@@ -88,7 +88,9 @@ export async function generateReply({
   debug = false,
   userId,
   guildId,
-  onIteration
+  onIteration,
+  onToolStart,
+  onToolEnd
 }) {
   try {
     // 1. Deteksi skill yang relevan secara otomatis berdasarkan kata kunci/fuzzy match
@@ -206,7 +208,13 @@ Panduan penggunaan:
         // Log panggilan tool mulai
         console.log(`[TOOL_CALL][START] User: ${userId} | Guild: ${guildId} | Tool: ${toolName} | Args: ${JSON.stringify(args)}`)
 
+        // Callback: tool mulai dijalankan
+        if (onToolStart) {
+          await onToolStart(toolName, args, iterations)
+        }
+
         let toolResult
+        const toolStartTime = Date.now()
         try {
           if (toolName.startsWith('mcp__')) {
             // Eksekusi tool MCP
@@ -227,19 +235,31 @@ Panduan penggunaan:
             await incrementSkillUsage(skill.id)
           }
 
+          const duration = Date.now() - toolStartTime
           // Log panggilan tool berhasil
           const resStr = typeof toolResult === 'object' ? JSON.stringify(toolResult) : String(toolResult)
-          console.log(`[TOOL_CALL][SUCCESS] Tool: ${toolName} | Output size: ${resStr.length} chars`)
+          console.log(`[TOOL_CALL][SUCCESS] Tool: ${toolName} | Output size: ${resStr.length} chars | ${duration}ms`)
 
           if (toolResult && toolResult.isAttachment && toolResult.filepath) {
             attachments.push(toolResult)
           }
 
           toolSequence.push(toolName)
+
+          // Callback: tool selesai berhasil
+          if (onToolEnd) {
+            await onToolEnd(toolName, { success: true, duration })
+          }
         } catch (error) {
+          const duration = Date.now() - toolStartTime
           // Log panggilan tool gagal
           console.error(`[TOOL_CALL][ERROR] Tool: ${toolName} | Error: ${error.message}`)
           toolResult = { error: error.message }
+
+          // Callback: tool selesai dengan error
+          if (onToolEnd) {
+            await onToolEnd(toolName, { success: false, duration, error: error.message })
+          }
         }
 
         messages.push({
