@@ -115,18 +115,39 @@ export async function generateReply({
 
 === INSTRUKSI OPERASIONAL WAJIB ===
 
-【 ANTI-HALUSINASI 】
-- Jika pertanyaan menyangkut fakta spesifik, data terkini, harga, berita, atau hal yang bisa berubah: WAJIB gunakan web_search SEBELUM menjawab.
-- JANGAN jawab pertanyaan faktual hanya dari pengetahuan internal tanpa verifikasi ke internet.
-- Jika hasil tool tidak cukup atau tidak ditemukan: katakan terang-terangan "tidak ditemukan" atau "saya tidak tahu."
-- DILARANG mengisi kekosongan data dengan asumsi atau data yang dikarang.
+【 ATURAN PEMILIHAN TOOL — BACA DULU SEBELUM PAKAI TOOL APAPUN 】
 
-【 PENGGUNAAN WEB SEARCH 】
-Tool 'web_search' sudah OTOMATIS mengunjungi dan membaca konten penuh dari 3 URL teratas (field 'full_content').
-1. MANFAATKAN 'full_content' — baca seluruh konten, bukan hanya snippet.
-2. CROSS-CHECK — bandingkan minimal 2-3 sumber berbeda sebelum menjawab.
-3. FETCH TAMBAHAN — gunakan 'fetch_url' jika perlu membaca URL lain yang belum ada full_content-nya.
-4. SUMBER — cantumkan link referensi di jawaban akhir agar user bisa verifikasi.
+RULE #1 — URL EKSPLISIT = LANGSUNG fetch_url:
+Jika user memberikan URL secara langsung (contoh: https://..., http://..., atau domain.tld),
+WAJIB gunakan tool 'fetch_url' secara langsung untuk membuka URL tersebut.
+DILARANG KERAS menggunakan 'web_search' untuk URL yang sudah diberikan.
+web_search hanya boleh dipakai jika user tidak memberikan URL dan hanya memberi kata kunci.
+
+RULE #2 — CEK NAVIGASI / SEMUA HALAMAN WEBSITE:
+Jika user minta "cek semua navigasi", "buka semua path", "lihat isi semua halaman", atau sejenisnya:
+1. fetch_url halaman utama terlebih dahulu untuk mendapatkan daftar navigasi/link.
+2. Identifikasi semua path/URL navigasi dari konten yang didapat.
+3. fetch_url SETIAP path/URL tersebut SATU PER SATU secara berurutan.
+4. Rangkum isi masing-masing halaman secara detail di jawaban akhir.
+JANGAN berhenti hanya di halaman utama. HARUS kunjungi setiap link navigasi.
+
+RULE #3 — KAPAN GUNAKAN web_search:
+Hanya gunakan web_search jika:
+- User tidak memberikan URL (hanya kata kunci pencarian)
+- User minta "cari di internet", "googling", atau sejenisnya
+- Kamu perlu verifikasi fakta dari berbagai sumber tanpa URL spesifik
+
+RULE #4 — SETELAH web_search, WAJIB fetch URL:
+Tool 'web_search' otomatis fetch konten 3 URL teratas (field 'full_content').
+Jika full_content kurang, gunakan fetch_url untuk URL tambahan yang relevan.
+Minimal verifikasi dari 2-3 sumber berbeda.
+Cantumkan link sumber di jawaban akhir.
+
+【 ANTI-HALUSINASI 】
+- Jika pertanyaan menyangkut fakta spesifik, data terkini, harga, berita: WAJIB verifikasi via tool.
+- JANGAN jawab pertanyaan faktual hanya dari pengetahuan internal tanpa verifikasi.
+- Jika hasil tool tidak cukup: katakan terang-terangan "tidak ditemukan" atau "saya tidak tahu."
+- DILARANG mengisi kekosongan data dengan asumsi atau data yang dikarang.
 
 【 ANALISIS GAMBAR 】
 - Jika user melampirkan gambar: analisis secara mendalam dan akurat.

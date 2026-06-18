@@ -4,13 +4,13 @@ import { isSafeUrl } from './ssrf.js'
 
 export const definition = {
   name: 'fetch_url',
-  description: 'Mengambil konten teks dari sebuah halaman web.',
+  description: 'Membuka dan membaca konten dari sebuah URL/halaman web secara langsung. GUNAKAN TOOL INI jika user memberikan URL eksplisit (https://, http://, atau domain). HANYA gunakan tool ini jika sudah memiliki URL; jika user hanya bertanya topik/kata kunci, gunakan web_search.',
   parameters: {
     type: 'object',
     properties: {
       url: {
         type: 'string',
-        description: 'URL halaman web yang ingin diambil'
+        description: 'URL halaman web yang ingin diambil (harus lengkap: https://...)'
       },
       selector: {
         type: 'string',

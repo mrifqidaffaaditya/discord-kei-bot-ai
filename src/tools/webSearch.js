@@ -5,7 +5,7 @@ import { isSafeUrl } from './ssrf.js'
 
 export const definition = {
   name: 'web_search',
-  description: 'Mencari informasi di internet dan secara otomatis membaca isi dari beberapa website teratas untuk hasil yang akurat dan detail.',
+  description: 'Mencari informasi di internet dengan kata kunci. HANYA gunakan jika user TIDAK memberikan URL — hanya topik/kata kunci. Jika user memberikan URL langsung (https://...), gunakan fetch_url BUKAN tool ini. Otomatis membaca konten penuh dari 3 URL teratas hasil pencarian.',
   parameters: {
     type: 'object',
     properties: {
