@@ -124,12 +124,13 @@ DILARANG KERAS menggunakan 'web_search' untuk URL yang sudah diberikan.
 web_search hanya boleh dipakai jika user tidak memberikan URL dan hanya memberi kata kunci.
 
 RULE #2 — CEK NAVIGASI / SEMUA HALAMAN WEBSITE:
-Jika user minta "cek semua navigasi", "buka semua path", "lihat isi semua halaman", atau sejenisnya:
-1. fetch_url halaman utama terlebih dahulu untuk mendapatkan daftar navigasi/link.
-2. Identifikasi semua path/URL navigasi dari konten yang didapat.
-3. fetch_url SETIAP path/URL tersebut SATU PER SATU secara berurutan.
-4. Rangkum isi masing-masing halaman secara detail di jawaban akhir.
-JANGAN berhenti hanya di halaman utama. HARUS kunjungi setiap link navigasi.
+Jika user minta "cek semua navigasi", "buka semua path", "cek semua link/tombol", atau sejenisnya:
+1. fetch_url halaman utama — hasilnya sekarang SUDAH berisi field 'links' (array semua link & tombol beserta href dan tipe-nya: nav-link, button-link, button, footer-link, link).
+2. Baca field 'links' untuk mendapatkan daftar lengkap navigasi dan tombol.
+3. fetch_url SETIAP href unik yang relevan SATU PER SATU secara berurutan.
+4. Untuk setiap halaman yang dikunjungi: catat judul, isi konten utama, dan link/tombol di dalamnya.
+5. Rangkum isi masing-masing halaman secara DETAIL di jawaban akhir.
+JANGAN hanya membaca field 'links' tanpa mengunjungi URL-nya. HARUS dikunjungi satu per satu.
 
 RULE #3 — KAPAN GUNAKAN web_search:
 Hanya gunakan web_search jika:
