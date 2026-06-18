@@ -8,6 +8,7 @@ import { execSync, spawnSync } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 import os from 'os'
+import { CONFIG } from './config.js'
 
 const GREEN  = '\x1b[32m'
 const YELLOW = '\x1b[33m'
@@ -132,6 +133,17 @@ function printDiskUsageDiagnostics(dir) {
  */
 function installPlaywrightChromium(checkDir) {
   warn('Mengunduh Chromium via Playwright (bisa 1-3 menit, ~190MB)...')
+  
+  // Ambil tmpDir dari CONFIG, default ke /home/container/tmp atau folder temp proyek
+  const tmpDir = CONFIG.agent?.tmpDir || path.join(process.cwd(), 'tmp')
+  try {
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true })
+    }
+  } catch (e) {
+    warn(`Gagal membuat folder temp custom (${tmpDir}): ${e.message}. Menggunakan default.`)
+  }
+
   try {
     const result = spawnSync(
       'npx', ['playwright', 'install', 'chromium'],
@@ -140,6 +152,9 @@ function installPlaywrightChromium(checkDir) {
         timeout: 300_000, // 5 menit
         env: {
           ...process.env,
+          TMPDIR: tmpDir,
+          TEMP: tmpDir,
+          TMP: tmpDir,
           PLAYWRIGHT_BROWSERS_PATH: PW_CACHE_DIR,
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '', // reset skip
         },
