@@ -2,6 +2,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js'
 import path from 'path'
+import fs from 'fs'
 
 /**
  * Membuat dan menghubungkan client MCP baru
@@ -33,6 +34,44 @@ export async function createMcpClient(serverConfig) {
 
     // Gabung environment variables
     const mcpEnv = { ...process.env }
+
+    // Pastikan HOME di-set untuk ekspansi path di Python
+    if (!mcpEnv.HOME) {
+      mcpEnv.HOME = process.env.HOME || '/home/container'
+    }
+
+    // Deteksi otomatis versi Python yang ada di sistem dan tambahkan ke PYTHONPATH
+    const homeDir = mcpEnv.HOME
+    const pythonPaths = []
+    try {
+      const libPath = path.join(homeDir, '.local/lib')
+      if (fs.existsSync(libPath)) {
+        const dirs = fs.readdirSync(libPath)
+        for (const dir of dirs) {
+          if (dir.startsWith('python')) {
+            const sitePackages = path.join(libPath, dir, 'site-packages')
+            if (fs.existsSync(sitePackages)) {
+              pythonPaths.push(sitePackages)
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Abaikan jika direktori tidak terbaca
+    }
+
+    // Fallback path standard
+    pythonPaths.push(path.join(homeDir, '.local/lib/python3.12/site-packages'))
+    pythonPaths.push(path.join(homeDir, '.local/lib/python3.11/site-packages'))
+    pythonPaths.push(path.join(homeDir, '.local/lib/python3.10/site-packages'))
+
+    const newPythonPath = pythonPaths.join(':')
+    if (mcpEnv.PYTHONPATH) {
+      mcpEnv.PYTHONPATH = `${newPythonPath}:${mcpEnv.PYTHONPATH}`
+    } else {
+      mcpEnv.PYTHONPATH = newPythonPath
+    }
+
     if (serverConfig.env) {
       for (const [key, val] of Object.entries(serverConfig.env)) {
         mcpEnv[key] = typeof val === 'string' ? val.replace(/\${([^}]+)}/g, (match, varName) => process.env[varName] || '') : String(val)
