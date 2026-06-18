@@ -1,0 +1,26 @@
+{
+  "servers": [
+    {
+      "name": "filesystem",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "./workspace"
+      ],
+      "enabled": true,
+      "description": "Akses filesystem workspace"
+    },
+    {
+      "name": "openbrowser",
+      "type": "stdio",
+      "command": "~/.local/bin/openbrowser-ai",
+      "args": [
+        "--mcp"
+      ],
+      "enabled": true,
+      "description": "AI-native browser automation server (OpenBrowser)"
+    }
+  ]
+}

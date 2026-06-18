@@ -65,6 +65,76 @@ export async function initDb() {
   await db.query(`
     ALTER TABLE server_configs ADD COLUMN IF NOT EXISTS allow_clear BOOLEAN DEFAULT TRUE
   `).catch(() => {})
+
+  // Tool usage tracking & rate limiting
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS tool_usage (
+      id          INT AUTO_INCREMENT PRIMARY KEY,
+      user_id     VARCHAR(32) NOT NULL,
+      guild_id    VARCHAR(32) NOT NULL,
+      tool_name   VARCHAR(128) NOT NULL,
+      used_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_user_tool (user_id, tool_name, used_at)
+    )
+  `)
+
+  // Tool permissions per server
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS tool_permissions (
+      guild_id    VARCHAR(32) NOT NULL,
+      tool_name   VARCHAR(128) NOT NULL,
+      enabled     TINYINT(1) DEFAULT 1,
+      PRIMARY KEY (guild_id, tool_name)
+    )
+  `)
+
+  // Skill definitions
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS skills (
+      id              VARCHAR(32) PRIMARY KEY,
+      guild_id        VARCHAR(32),
+      name            VARCHAR(128) NOT NULL,
+      description     TEXT,
+      version         VARCHAR(16) DEFAULT '1.0',
+      author_id       VARCHAR(32),
+      type            ENUM('prompt','workflow','code','persona','mcp_wrapper') NOT NULL,
+      scope           ENUM('guild','global') DEFAULT 'guild',
+      trigger_patterns JSON,
+      definition      JSON NOT NULL,
+      source_url      VARCHAR(512),
+      enabled         TINYINT(1) DEFAULT 1,
+      usage_count     INT DEFAULT 0,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      INDEX idx_guild (guild_id),
+      INDEX idx_name_guild (name, guild_id)
+    )
+  `)
+
+  // Observasi pola tool untuk auto skill creation
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS skill_observations (
+      id            INT AUTO_INCREMENT PRIMARY KEY,
+      guild_id      VARCHAR(32) NOT NULL,
+      user_id       VARCHAR(32) NOT NULL,
+      tool_sequence JSON,
+      pattern_hash  VARCHAR(64),
+      observed_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_guild_pattern (guild_id, pattern_hash, observed_at)
+    )
+  `)
+
+  // Saran skill yang menunggu review admin
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS skill_suggestions (
+      id              INT AUTO_INCREMENT PRIMARY KEY,
+      guild_id        VARCHAR(32) NOT NULL,
+      suggested_skill JSON NOT NULL,
+      status          ENUM('pending','accepted','rejected','ignored') DEFAULT 'pending',
+      notified        TINYINT(1) DEFAULT 0,
+      created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
 }
 
 export async function isAllowedChannel(guildId, channelId) {

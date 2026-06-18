@@ -1,269 +1,200 @@
-# 🤖 AiKei Bot — Discord AI Chatbot
+# 🤖 AiKei Bot — Discord AI Agent (v2.0)
 
-Bot Discord AI dengan kemampuan memory jangka panjang, konfigurasi per-server, dan personality yang bisa dikustomisasi. Dibangun menggunakan **Discord.js v14**, **OpenAI-compatible API**, dan **MySQL**.
+Bot Discord AI dengan kemampuan **Autonomous Agentic Workflow** (perencanaan & eksekusi multi-step), memory jangka panjang cerdas, sistem auto-skill dinamis, koordinator client Model Context Protocol (MCP), dan panel administrasi komprehensif. Dibangun menggunakan **Discord.js v14**, **OpenAI-compatible API**, dan **MySQL**.
 
 ---
 
-## ✨ Fitur
+## ✨ Fitur Utama
 
-- **🧠 Memory Cerdas** — Bot mengingat informasi personal user (nama, hobi, preferensi, dll) secara otomatis dan permanen di database. Memory dianalisis setiap percakapan dan di-update jika ada perubahan.
-- **💬 Chat Natural** — Bot merespons dengan gaya santai dan natural seperti manusia biasa, bukan robot.
-- **📜 History Percakapan** — Menyimpan hingga 50 (konfigurabel) riwayat chat per user agar bot paham konteks pembicaraan.
-- **⚙️ Konfigurasi Per-Server** — Setiap server bisa punya channel & personality AI yang berbeda-beda.
-- **🎭 Custom Personality** — Admin bisa mengubah sifat/instruksi bot khusus untuk server masing-masing.
-- **📝 Reply Context** — Bot bisa membaca isi pesan yang di-reply user untuk konteks yang lebih baik.
-- **⌨️ Typing Indicator** — Bot menampilkan efek "sedang mengetik..." saat memproses pesan.
-- **🔧 Dual Command System** — Mendukung Slash Commands (`/`) dan Text Commands (`!ai`).
-- **📊 Debug Mode** — Menampilkan info latency, token usage, dan memory yang ditambahkan.
+- **🧠 Memory Cerdas Jangka Panjang** — Bot secara otomatis mengekstrak informasi personal user (nama, hobi, preferensi, dll) secara permanen di database. Memory diisolasi per-user per-server.
+- **⚡ Autonomous Agent Loop** — Bot dapat merencanakan (planning), mengevaluasi, dan mengeksekusi tugas-tugas kompleks secara mandiri menggunakan sekuensial tool-calling (hingga maksimal 10 iterasi dengan timeout 3 menit).
+- **🛠️ Registry Built-in Tools** — Dilengkapi berbagai tool bawaan yang dilindungi rate-limit dan enkripsi:
+  - `web_search` — Pencarian web via DuckDuckGo, Brave, SerpAPI, atau custom API.
+  - `fetch_url` — Membaca konten teks/markdown dari sebuah URL.
+  - `navigate_web` — Navigasi dan screenshot halaman web menggunakan Playwright (headless).
+  - `download_file` — Mengunduh file dengan verifikasi batas ukuran berkas yang aman.
+  - `run_code` — Eksekusi kode JS/Python dalam sandbox terisolasi.
+  - `http_request` — Mengirim custom request HTTP yang dilindungi dari SSRF (private IP blocklist).
+  - `create_custom_tool` — Membuat tool kustom baru berbasis kode atau prompt secara dinamis.
+- **📦 Dynamic Auto-Skill System** — Bot menganalisis pola pemanggilan tool berulang dan menyarankan pembuatan "skill" baru ke admin melalui Discord Embed dengan tombol Accept/Reject. Mendukung tipe skill: `prompt`, `workflow`, `code`, dan `persona`.
+- **🔌 Client Model Context Protocol (MCP)** — Terhubung secara langsung dengan server MCP stdio seperti server `filesystem` dan `openbrowser` (otomatisasi browser berbasis AI-native).
+- **🚀 Pterodactyl Auto-Startup** — Script [start.sh](file:///home/aditya/project/discord-kei-bot-ai/start.sh) yang dirancang khusus untuk deployment di panel Pterodactyl secara non-interaktif:
+  - Otomatis menginstal paket npm & python (`openbrowser-ai`, `mcp`).
+  - Mengunduh browser Chromium tanpa prompt sudo/root.
+  - Men-sinkronisasikan parameter dari Environment Variables panel langsung ke berkas `.env`.
 
 ---
 
 ## 📋 Prasyarat
 
-- **Node.js** v18 atau lebih baru
-- **MySQL** database server
-- **Discord Bot Token** dari [Discord Developer Portal](https://discord.com/developers/applications)
-- **OpenAI-compatible API Key** (OpenAI, LiteLLM, atau provider lainnya)
+- **Node.js** v18 atau lebih baru.
+- **Python** v3.10 atau lebih baru (dengan pip3).
+- **MySQL** database server.
+- **Discord Bot Token** dari [Discord Developer Portal](https://discord.com/developers/applications).
+- **OpenAI-compatible API Key** (OpenAI, LiteLLM, AIKei Hermes, dll).
 
 ---
 
-## 🚀 Instalasi
+## 🚀 Instalasi & Menjalankan Bot
 
 ### 1. Clone repository
-
 ```bash
 git clone https://github.com/username/discord-kei-bot-ai.git
 cd discord-kei-bot-ai
 ```
 
-### 2. Install dependencies
+### 2. Konfigurasi Environment & Startup Otomatis (Non-Interaktif)
 
-```bash
-npm install
-```
+Untuk mempermudah hosting (terutama pada panel Pterodactyl), bot ini menggunakan script [start.sh](file:///home/aditya/project/discord-kei-bot-ai/start.sh) yang akan menyiapkan seluruh dependensi secara otomatis:
 
-### 3. Konfigurasi environment
-
-Salin file `.env.example` ke `.env` dan isi dengan kredensial Anda:
-
-```bash
-cp .env.example .env
-```
-
-Lalu edit file `.env`:
-
-```env
-# Discord Token (dari Discord Developer Portal)
-DISCORD_TOKEN=your_discord_bot_token_here
-
-# OpenAI-compatible endpoint
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_BASE_URL=https://api.openai.com/v1
-
-# (Opsional) Fallback channel, sekarang dikelola via command
-ALLOWED_CHANNELS=
-ADMIN_IDS=your_discord_user_id_here
-
-# Database configuration (MySQL)
-DB_HOST=localhost
-DB_USER=root
-DB_PASSWORD=your_db_password_here
-DB_NAME=discord_bot_ai
-```
-
-> **Cara mendapatkan Discord User ID:**
-> Buka Discord → Settings → Advanced → aktifkan Developer Mode → klik kanan pada profil Anda → Copy User ID.
-
-### 4. Buat database MySQL
-
-```sql
-CREATE DATABASE discord_bot_ai;
-```
-
-> Semua tabel (`histories`, `memories`, `server_channels`, `server_configs`) akan dibuat **otomatis** saat bot pertama kali dijalankan. Anda hanya perlu membuat database-nya saja.
-
-### 5. Jalankan bot
-
-```bash
-node .
-```
-
-> Slash Commands akan otomatis didaftarkan setiap kali bot dijalankan. Anda juga bisa menggunakan text commands (`!ai`) sebagai alternatif.
+1. Atur Environment Variables di panel hosting Anda atau buat berkas `.env` manual:
+   ```env
+   DISCORD_TOKEN=your_discord_bot_token_here
+   OPENAI_API_KEY=your_openai_api_key_here
+   OPENAI_BASE_URL=https://api.openai.com/v1
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASSWORD=your_db_password_here
+   DB_NAME=discord_bot_ai
+   ```
+2. Jalankan bot via script startup:
+   ```bash
+   chmod +x start.sh
+   ./start.sh
+   ```
+   *Skrip ini otomatis menginstal dependensi node, python library, browser Chromium, memetakan env var panel ke `.env`, lalu menyalakan bot.*
 
 ---
 
-## 📖 Penggunaan
+## 📖 Panduan Penggunaan & Perintah
 
-### Cara Chat dengan Bot
+### Cara Berinteraksi dengan Bot
 
-| Situasi | Cara |
+| Situasi | Cara Chat |
 |---|---|
-| **Channel yang sudah di-setup** | Langsung ketik pesan biasa, tidak perlu mention bot |
-| **Channel yang belum di-setup** | Mention bot: `@BotName pesan kamu` |
-| **DM (Direct Message)** | Langsung ketik pesan biasa |
+| **Channel terdaftar (Setup)** | Cukup ketik pesan biasa, bot akan memproses dan menggunakan tool jika diperlukan |
+| **Channel belum terdaftar** | Mention bot di awal pesan: `@AiKei cari resep nasi goreng` |
+| **DM (Direct Message)** | Langsung kirim pesan pribadi ke bot |
 
 ### Daftar Perintah
 
-#### 🛡️ Perintah Admin Server *(perlu izin "Manage Server")*
+#### 🛡️ Perintah Admin Server *(perlu permission "Manage Server")*
 
-| Slash Command | Text Command | Deskripsi |
+| Perintah Slash | Perintah Teks | Deskripsi |
 |---|---|---|
-| `/setup` | `!ai setup` | Izinkan bot merespons di channel ini |
-| `/remove-channel` | `!ai remove-channel` | Hapus izin bot di channel ini |
-| `/set-personality <teks>` | `!ai set-personality <teks>` | Ubah sifat/instruksi bot untuk server ini |
-| `/toggle-clear` | `!ai toggle-clear` | Izinkan/larang user menghapus data mereka |
-| `/purge-server` | `!ai purge-server` | Hapus SEMUA data memory & history di server |
+| `/setup` | `!ai setup` | Daftarkan channel ini agar bot merespons otomatis |
+| `/remove-channel` | `!ai remove-channel` | Hapus izin bot merespons di channel ini |
+| `/set-personality <teks>` | `!ai set-personality <teks>` | Kustomisasi instruksi dasar/sifat bot di server ini |
+| `/toggle-clear` | `!ai toggle-clear` | Izinkan/larang user biasa menghapus data mereka |
+| `/purge-server` | `!ai purge-server` | Hapus semua data memory & history server ini |
+| `/clear-history` | `!ai clear-history` | Hapus riwayat obrolan di server ini |
 
-#### 🔑 Perintah Bot Owner *(ADMIN_IDS di .env)*
+#### 🛠️ Manajemen Tools *(Admin)*
 
-| Slash Command | Text Command | Deskripsi |
+| Perintah Slash | Perintah Teks | Deskripsi |
 |---|---|---|
-| `/debug` | `!ai debug` | Toggle mode debug (latency & token usage) |
+| `/tool-list` | `!ai tool-list` | Tampilkan status aktif/nonaktif built-in tools |
+| `/tool-enable <nama>` | `!ai tool-enable <nama>` | Aktifkan tool tertentu untuk digunakan bot di server |
+| `/tool-disable <nama>` | `!ai tool-disable <nama>` | Nonaktifkan tool tertentu |
 
-#### 👤 Perintah User
+#### 📦 Manajemen Skill *(Admin / User)*
 
-| Slash Command | Text Command | Deskripsi |
+| Perintah Slash | Perintah Teks | Deskripsi |
 |---|---|---|
-| `/clear-memory` | `!ai clear-memory` | Hapus memory bot tentang kamu* |
-| `/clear-history` | `!ai clear-history` | Hapus riwayat obrolan kamu* |
-| `/help` | `!ai help` | Tampilkan daftar perintah |
+| `/skill-list` | `!ai skill-list` | Lihat daftar skill aktif di server ini |
+| `/skill-info <nama>` | `!ai skill-info <nama>` | Lihat detail, tipe, author, dan trigger pattern skill |
+| `/skill-run <nama> [input]` | `!ai skill-run <nama> [input]` | Jalankan skill secara manual dengan parameter input |
+| `/skill-create` | *Hanya Slash* | Buat skill baru (`prompt`, `workflow`, `code`, `persona`) |
+| `/skill-delete <nama>` | `!ai skill-delete <nama>` | Hapus skill dari database server |
+| `/skill-enable <nama>` | `!ai skill-enable <nama>` | Aktifkan skill tertentu |
+| `/skill-disable <nama>` | `!ai skill-disable <nama>` | Nonaktifkan skill tertentu |
+| `/skill-install <url>` | `!ai skill-install <url>` | Instal kumpulan skill terverifikasi dari URL JSON |
 
-> *\*Di server, fitur clear bisa dinonaktifkan oleh Admin Server via `/toggle-clear`. Di DM, user selalu bisa menghapus data mereka.*
+#### 🔌 Manajemen Model Context Protocol (MCP) *(hanya Bot Owner)*
 
-### Contoh Penggunaan
+| Perintah Slash | Perintah Teks | Deskripsi |
+|---|---|---|
+| `/mcp-list` | `!ai mcp-list` | Tampilkan server MCP yang terdaftar di konfigurasi |
+| `/mcp-tools <server>` | `!ai mcp-tools <server>` | Tampilkan daftar tools yang disediakan server MCP |
+| `/mcp-enable <server>` | `!ai mcp-enable <server>` | Aktifkan server MCP tertentu |
+| `/mcp-disable <server>` | `!ai mcp-disable <server>` | Nonaktifkan server MCP tertentu |
+| `/mcp-reconnect <server>` | `!ai mcp-reconnect <server>` | Muat ulang koneksi stdio/sse ke server MCP |
+| *Tidak Ada* | `!ai mcp-install <npx/git>` | Daftarkan dan pasang server MCP baru secara dinamis |
 
+---
+
+## 🧠 Desain Sistem Agentic & Memory
+
+Ketika user mengirim pesan di channel yang aktif, Kei Agent menjalankan alur kerja berikut:
 ```
-# Setup channel (Admin)
-!ai setup
-
-# Ubah personality bot (Admin)
-!ai set-personality Kamu adalah asisten yang sangat ramah dan selalu pakai emoji
-
-# Chat biasa (di channel yang sudah di-setup)
-Halo, apa kabar?
-
-# Hapus riwayat
-!ai clear-history
+              Pesan Masuk (User)
+                     ↓
+       Ambil Memory Lama dari Database
+                     ↓
+        Inisialisasi Agent Loop & Tools
+                     ↓
+       AI Membuat Rencana (Planning Step)
+                     ↓
+       Panggil Tools (Web Search, MCP, dll.)
+                     ↓
+    Apakah Butuh Langkah Tambahan? (Maks 10x)
+         ├── Ya  ──→ Eksekusi Tool & loop kembali
+         └── Tidak ──→ Selesai
+                     ↓
+      Kirim Balasan ke Discord Chat
+                     ↓
+    Analisis Percakapan untuk Memory Baru
+                     ↓
+   Simpan / Perbarui Memory di Database MySQL
 ```
 
 ---
 
-## 🧠 Sistem Memory
+## 🗄️ Skema Database MySQL
 
-Bot secara otomatis mengekstrak dan menyimpan informasi personal dari setiap percakapan:
-
-- **Nama, umur, gender** pengguna
-- **Lokasi** (kota, negara)
-- **Pekerjaan, hobi, skill**
-- **Preferensi** (makanan favorit, musik, game, dll)
-- **Perasaan dan mood** terkini
-- **Rencana, tujuan, mimpi**
-- **Orang-orang penting** (pacar, teman, keluarga)
-- Dan informasi personal lainnya
-
-### Cara Kerja Memory
-
-```
-User mengirim pesan
-        ↓
-Ambil memory lama dari database
-        ↓
-Generate AI reply (dengan konteks memory + history)
-        ↓
-Analisis percakapan (user + AI reply + memory lama)
-        ↓
-Bandingkan dengan memory yang sudah ada
-        ↓
-Tambah memory baru / Update memory yang berubah
-```
-
-Memory bersifat **per-user per-server**, artinya data yang disimpan di Server A tidak akan bocor ke Server B atau DM.
+Semua tabel database akan **dibuat secara otomatis** saat pertama kali bot dinyalakan:
+1. `histories` — Menyimpan riwayat percakapan per server (shared context).
+2. `memories` — Menyimpan fakta/informasi personal per-user per-server (isolated).
+3. `server_channels` — Daftar ID channel yang diizinkan merespons otomatis.
+4. `server_configs` — Konfigurasi personality server dan izin pembersihan data.
+5. `tool_usage` — Pencatatan riwayat pemanggilan tool untuk statistik & rate-limiting.
+6. `tool_permissions` — Pengaturan izin tool yang diaktifkan/dinonaktifkan per server.
+7. `skills` — Definisi skill kustom (prompt, workflow, code, dll).
+8. `skill_observations` — Log pemanggilan tool berurutan untuk analisis pola otomatis.
+9. `skill_suggestions` — Daftar usulan skill baru menunggu persetujuan admin.
 
 ---
 
 ## 🏗️ Struktur Proyek
 
 ```
-discord-aikei-bot/
-├── .env                    # Konfigurasi environment (RAHASIA)
-├── .env.example            # Template konfigurasi
-├── .gitignore              # File yang diabaikan git
-├── package.json            # Dependencies & scripts
+discord-kei-bot-ai/
+├── package.json            # Scripts & dependensi Node.js
+├── mcp_servers.json        # Konfigurasi server MCP (filesystem & openbrowser)
+├── start.sh                # Skrip startup otonom non-interaktif
 ├── src/
-│   ├── index.js            # Entry point, event handlers utama
-│   ├── ai.js               # Integrasi OpenAI API (chat + memory extraction)
-│   ├── commands.js          # Handler slash commands & text commands
-│   ├── config.js           # Konfigurasi aplikasi
-│   ├── db.js               # Koneksi MySQL & helper functions
-│   ├── history.js          # Manajemen riwayat percakapan
-│   ├── memory.js           # Manajemen memory user
-│   └── register-commands.js # Script registrasi slash commands
+│   ├── index.js            # Entry point bot & event Discord
+│   ├── ai.js               # Core Agent Loop, Planning, & Memory Extraction
+│   ├── commands.js         # Handler perintah teks & slash commands
+│   ├── db.js               # Inisialisasi & Query database MySQL
+│   ├── config.js           # Pengaturan parameter global & default
+│   ├── history.js          # Pengelola riwayat percakapan
+│   ├── memory.js           # Pengelola data memory user
+│   ├── tools/              # Registry & implementasi built-in tools
+│   ├── skills/             # Engine pendeteksi & pengeksekusi skill kustom
+│   └── mcp/                # Client coordinator & parser instalasi MCP
 ```
 
 ---
 
-## ⚙️ Konfigurasi Lanjutan
+## 🔒 Keamanan (Security)
 
-Pengaturan AI dapat diubah di `src/config.js`:
-
-```javascript
-ai: {
-    model: "gpt-3.5-turbo",    // Model AI (sesuaikan dengan provider)
-    temperature: 0.7,           // Kreativitas (0.0 - 1.0)
-    maxTokens: 1000,            // Maksimal token per respons
-    historyLimit: 50,           // Jumlah history chat yang disimpan
-}
-```
-
-### Menggunakan Provider Lain (selain OpenAI)
-
-Bot ini kompatibel dengan semua API yang mengikuti format OpenAI. Cukup ubah `OPENAI_BASE_URL` di `.env`:
-
-```env
-# LiteLLM
-OPENAI_BASE_URL=https://your-litellm-proxy.com/v1
-
-# Ollama (lokal)
-OPENAI_BASE_URL=http://localhost:11434/v1
-
-# Provider lainnya
-OPENAI_BASE_URL=https://api.provider.com/v1
-```
+- **SSRF protection** — `http_request` divalidasi menggunakan module `ssrf.js` untuk memblokir akses ke alamat IP privat/metadata cloud.
+- **Sandbox execution** — Eksekusi kode dinamis terisolasi mencegah modifikasi pada system host utama.
+- **Token Encrypted** — Semua kredensial diletakkan di berkas `.env` dan diabaikan dari git via `.gitignore`.
 
 ---
 
-## 🗄️ Database Schema
+## 🤝 Kontribusi & Lisensi
 
-Bot menggunakan 4 tabel MySQL:
-
-| Tabel | Fungsi |
-|---|---|
-| `histories` | Menyimpan riwayat percakapan per user per server |
-| `memories` | Menyimpan memory/fakta personal per user per server |
-| `server_channels` | Daftar channel yang diizinkan per server |
-| `server_configs` | Konfigurasi per server (personality, dll) |
-
-> Semua tabel dibuat otomatis saat bot pertama kali dijalankan.
-
----
-
-## 🔒 Keamanan
-
-- **Memory tersanitasi** — Input dari AI divalidasi sebelum disimpan ke database (panjang key max 100 char, value max 500 char).
-- **Parameterized queries** — Semua query SQL menggunakan parameterized queries untuk mencegah SQL injection.
-- **Isolasi data** — Data memory dan history terpisah per user per server.
-- **Dua level admin** — Admin Server (permission Discord) untuk konfigurasi server, Bot Owner (ADMIN_IDS) untuk debug.
-- **Kontrol penghapusan data** — Admin server bisa melarang user menghapus history/memory via toggle-clear.
-- **Ephemeral responses** — Respons slash command admin bersifat ephemeral (hanya terlihat oleh pengirim).
-
----
-
-## 📝 Lisensi
-
-ISC
-
----
-
-## 🤝 Kontribusi
-
-Pull request dan issue sangat diterima! Silakan fork repository ini dan buat perubahan yang Anda inginkan.
+Dibuat di bawah lisensi **ISC**. Pull Request & Issue sangat diterima untuk pengembangan fitur bot yang lebih pintar!
