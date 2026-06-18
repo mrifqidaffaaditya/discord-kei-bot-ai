@@ -9,6 +9,7 @@ import { initMcp } from './mcp/index.js'
 import { startObserverCron } from './skills/observer.js'
 import { createSkill } from './skills/index.js'
 import { commands } from './register-commands.js'
+import { setupBrowser } from './browser-setup.js'
 import fs from 'fs'
 
 const client = new Client({
@@ -70,6 +71,12 @@ function startTypingLoop(channel) {
 client.once(Events.ClientReady, async () => {
   console.log(`[Bot] Logged in as ${client.user.tag}`)
   console.log(`[Bot] Serving ${client.guilds.cache.size} server(s)`)
+
+  try {
+    await setupBrowser()
+  } catch (error) {
+    console.error('[Browser] Failed to setup browser:', error)
+  }
 
   client.user.setActivity('!ai help', { type: ActivityType.Watching })
 
