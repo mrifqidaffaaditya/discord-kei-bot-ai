@@ -8,6 +8,17 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Memulai Inisialisasi Kei Agent Bot ===${NC}"
 
+# Load berkas .env lokal jika tersedia agar nilainya terbaca oleh shell script ini
+if [ -f .env ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+        # Lewati komentar dan baris kosong
+        [[ "$line" =~ ^#.*$ ]] && continue
+        [[ -z "$line" ]] && continue
+        # Export variabel ke shell environment
+        eval "export $line" 2>/dev/null || export "$line"
+    done < .env
+fi
+
 # Bypassing duplicate browser downloads during npm install to save disk quota
 export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
