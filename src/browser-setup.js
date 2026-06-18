@@ -190,6 +190,11 @@ function installPlaywrightChromium(checkDir) {
  * Dipanggil saat bot start. Set process.env.CHROME_EXECUTABLE_PATH jika berhasil.
  */
 export async function setupBrowser() {
+  if (CONFIG.tools?.playwrightRemoteUrl) {
+    log('ℹ️ Menggunakan browser remote (CDP). Melewati setup Chromium lokal.')
+    return true
+  }
+
   warn('Memeriksa ketersediaan Chromium untuk browser operator...')
 
   // ── Cek 1: path sistem ──────────────────────────────────────────

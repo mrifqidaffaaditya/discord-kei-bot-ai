@@ -28,6 +28,7 @@ export const CONFIG = {
     aikeiSearchApiKey: process.env.AIKEI_SEARCH_API_KEY || "",
     playwrightEnabled: process.env.PLAYWRIGHT_ENABLED === "true",
     playwrightBrowsersPath: process.env.PLAYWRIGHT_BROWSERS_PATH || "/home/container/.cache/ms-playwright",
+    playwrightRemoteUrl: process.env.PLAYWRIGHT_REMOTE_URL || "",
     
     rateLimits: {
       web_search: parseInt(process.env.RATE_LIMIT_WEB_SEARCH || "10"),
