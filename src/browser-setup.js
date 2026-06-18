@@ -95,11 +95,42 @@ function getChromeVersion(chromePath) {
   } catch { return 'unknown' }
 }
 
+function printDiskUsageDiagnostics(dir) {
+  err('=== ANALISIS PENGGUNAAN DISK (DIAGNOSTIC) ===')
+  err('Terdeteksi ENOSPC (Disk Penuh/Quota Terlampaui).')
+  err('Berikut adalah penggunaan disk di direktori aktif:')
+  try {
+    const result = spawnSync('du', ['-sh', path.join(dir, '*'), path.join(dir, '.*')], { encoding: 'utf8', shell: true, timeout: 15000 })
+    if (result.status === 0 || result.stdout) {
+      const lines = result.stdout.split('\n')
+      for (const line of lines) {
+        if (line.trim()) {
+          const trimmed = line.trim()
+          if (trimmed.includes('/.') && !trimmed.endsWith('/..') && !trimmed.endsWith('/.')) {
+            err(`  ${trimmed}`)
+          } else if (!trimmed.includes('/.')) {
+            err(`  ${trimmed}`)
+          }
+        }
+      }
+    } else {
+      err(`Gagal menganalisis disk: status=${result.status}, stderr=${result.stderr || 'no stderr'}`)
+    }
+  } catch (e) {
+    err(`Gagal menganalisis disk: ${e.message}`)
+  }
+  err('💡 Tips Solusi Disk Penuh:')
+  err('  1. Bersihkan npm cache: hapus folder "/home/container/.npm" jika ada, atau jalankan "npm cache clean --force"')
+  err('  2. Kurangi log/file sampah di workspace Anda.')
+  err('  3. Jika memungkinkan, ganti Docker Image Pterodactyl Anda ke image yang sudah include Chromium (seperti tag debian/playwright) agar bot tidak perlu men-download Chromium secara dinamis.')
+  err('=============================================')
+}
+
 /**
  * Jalankan `npx playwright install chromium` secara synchronous
  * dengan output progress live ke console.
  */
-function installPlaywrightChromium() {
+function installPlaywrightChromium(checkDir) {
   warn('Mengunduh Chromium via Playwright (bisa 1-3 menit, ~190MB)...')
   try {
     const result = spawnSync(
@@ -115,17 +146,26 @@ function installPlaywrightChromium() {
         stdio: 'pipe',
       }
     )
-    // Tampilkan baris yang relevan dari output
+    // Tampilkan semua baris output agar detail error tidak hilang
     const output = (result.stdout || '') + (result.stderr || '')
-    const lines = output.split('\n').filter(l =>
-      /downloading|✓|error|failed|done|chromium/i.test(l)
-    )
+    const lines = output.split('\n')
     for (const line of lines) {
-      warn(line.trim())
+      if (line.trim()) {
+        warn(line.trim())
+      }
     }
+
+    const isEnospc = output.includes('ENOSPC')
+    if (isEnospc) {
+      printDiskUsageDiagnostics(checkDir)
+    }
+
     return result.status === 0
   } catch (e) {
     err(`Install gagal: ${e.message}`)
+    if (e.message?.includes('ENOSPC')) {
+      printDiskUsageDiagnostics(checkDir)
+    }
     return false
   }
 }
@@ -171,7 +211,7 @@ export async function setupBrowser() {
     return false
   }
 
-  const ok = installPlaywrightChromium()
+  const ok = installPlaywrightChromium(checkDir)
   if (ok) {
     const installed = findInPwCache()
     if (installed) {
