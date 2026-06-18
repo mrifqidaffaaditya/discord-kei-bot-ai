@@ -27,13 +27,28 @@ fi
 echo -e "${YELLOW}[Python] Memeriksa modul openbrowser dan mcp...${NC}"
 python3 -c "import openbrowser; import mcp" 2>/dev/null
 if [ $? -ne 0 ]; then
-    echo -e "${YELLOW}[Python] Dependensi belum lengkap. Memasang openbrowser-ai & mcp via pip3...${NC}"
-    python3 -m pip install openbrowser-ai mcp --break-system-packages
+    echo -e "${YELLOW}[Python] Dependensi belum lengkap. Memeriksa keberadaan pip...${NC}"
+    python3 -m pip --version 2>/dev/null
+    if [ $? -ne 0 ]; then
+        echo -e "${YELLOW}[Python] pip tidak ditemukan. Mengunduh dan memasang pip secara otomatis...${NC}"
+        node -e "const https = require('https'); const fs = require('fs'); https.get('https://bootstrap.pypa.io/get-pip.py', res => { if (res.statusCode !== 200) process.exit(1); const file = fs.createWriteStream('get-pip.py'); res.pipe(file); file.on('finish', () => { file.close(); process.exit(0); }); }).on('error', () => process.exit(1));"
+        if [ $? -eq 0 ]; then
+            python3 get-pip.py --user --break-system-packages 2>/dev/null
+            rm -f get-pip.py
+            echo -e "${GREEN}[Python] pip berhasil dipasang di user-space.${NC}"
+        else
+            echo -e "${RED}[Python] Gagal mengunduh installer pip (get-pip.py).${NC}"
+        fi
+    fi
+
+    echo -e "${YELLOW}[Python] Memasang openbrowser-ai & mcp via pip...${NC}"
+    python3 -m pip install openbrowser-ai mcp --user --break-system-packages
     if [ $? -ne 0 ]; then
         echo -e "${RED}[Python] Gagal memasang dependensi Python. Mohon pastikan Python3 dan pip terpasang di sistem Anda.${NC}"
         # Jangan exit 1 di sini agar bot tetap bisa berjalan jika MCP openbrowser di-disable
     else
         echo -e "${GREEN}[Python] Paket openbrowser-ai dan mcp berhasil dipasang.${NC}"
+        echo -e "${GREEN}[Python] Lokasi openbrowser: $(python3 -c "import openbrowser; print(openbrowser.__file__)" 2>/dev/null || echo "tidak ditemukan")${NC}"
         echo -e "${YELLOW}[Python] Mengunduh dependensi browser Chromium untuk OpenBrowser...${NC}"
         python3 -m playwright install chromium
     fi
