@@ -24,97 +24,101 @@ else
 fi
 
 # 2. Instalasi & Validasi Browser Chromium (untuk navigate_web / browser operator)
-echo -e "${YELLOW}[Browser] Memeriksa ketersediaan Chromium...${NC}"
+if [ -n "$PLAYWRIGHT_REMOTE_URL" ]; then
+    echo -e "${GREEN}[Browser] Menggunakan remote browser (CDP). Melewati pemeriksaan lokal.${NC}"
+else
+    echo -e "${YELLOW}[Browser] Memeriksa ketersediaan Chromium...${NC}"
 
-# Daftar path kandidat Chromium/Chrome di sistem
-CHROME_PATHS=(
-    "${CHROME_EXECUTABLE_PATH}"
-    "/usr/bin/chromium"
-    "/usr/bin/chromium-browser"
-    "/usr/bin/google-chrome"
-    "/usr/bin/google-chrome-stable"
-    "/usr/local/bin/chromium"
-    "/snap/bin/chromium"
-    "/opt/google/chrome/chrome"
-)
+    # Daftar path kandidat Chromium/Chrome di sistem
+    CHROME_PATHS=(
+        "${CHROME_EXECUTABLE_PATH}"
+        "/usr/bin/chromium"
+        "/usr/bin/chromium-browser"
+        "/usr/bin/google-chrome"
+        "/usr/bin/google-chrome-stable"
+        "/usr/local/bin/chromium"
+        "/snap/bin/chromium"
+        "/opt/google/chrome/chrome"
+    )
 
-FOUND_CHROME=""
+    FOUND_CHROME=""
 
-# Cek 1: path sistem
-for CHROME_PATH in "${CHROME_PATHS[@]}"; do
-    if [ -n "$CHROME_PATH" ] && [ -f "$CHROME_PATH" ] && [ -x "$CHROME_PATH" ]; then
-        FOUND_CHROME="$CHROME_PATH"
-        break
-    fi
-done
-
-# Cek 2: playwright cache yang sudah ada (dari install sebelumnya)
-if [ -z "$FOUND_CHROME" ]; then
-    PW_CACHE="${PLAYWRIGHT_BROWSERS_PATH:-/home/container/.cache/ms-playwright}"
-    # Cari binary chrome/chromium di cache (cek lebih spesifik dulu)
-    for PW_BIN in \
-        "$PW_CACHE"/chromium-*/chrome-linux/chrome \
-        "$PW_CACHE"/chromium-*/chrome-linux64/chrome \
-        "$PW_CACHE"/chromium*/chrome \
-        "$PW_CACHE"/chrome*/chrome; do
-        if [ -f "$PW_BIN" ] && [ -x "$PW_BIN" ]; then
-            FOUND_CHROME="$PW_BIN"
-            echo -e "${GREEN}[Browser] Playwright Chromium cache ditemukan: ${FOUND_CHROME}${NC}"
+    # Cek 1: path sistem
+    for CHROME_PATH in "${CHROME_PATHS[@]}"; do
+        if [ -n "$CHROME_PATH" ] && [ -f "$CHROME_PATH" ] && [ -x "$CHROME_PATH" ]; then
+            FOUND_CHROME="$CHROME_PATH"
             break
         fi
     done
-fi
 
-# Cek 3: jika belum ada, coba install via playwright (tanpa perlu root)
-if [ -z "$FOUND_CHROME" ]; then
-    echo -e "${YELLOW}[Browser] Chromium belum ada. Mencoba instalasi via Playwright...${NC}"
-
-    # Cek ruang disk yang tersedia (butuh ~300MB untuk Chromium)
-    AVAIL_MB=$(df -m /home/container 2>/dev/null | awk 'NR==2{print $4}' || df -m . 2>/dev/null | awk 'NR==2{print $4}' || echo "0")
-    echo -e "${YELLOW}[Browser] Ruang disk tersedia: ${AVAIL_MB} MB (minimal 350 MB diperlukan)${NC}"
-
-    if [ "$AVAIL_MB" -ge 350 ] 2>/dev/null; then
-        echo -e "${YELLOW}[Browser] Mengunduh Chromium via playwright (bisa memakan waktu 1-3 menit)...${NC}"
-
-        # Izinkan download sementara (sudah di-skip di atas untuk npm install)
-        PW_CACHE_DIR="${PLAYWRIGHT_BROWSERS_PATH:-/home/container/.cache/ms-playwright}"
-        export PLAYWRIGHT_BROWSERS_PATH="$PW_CACHE_DIR"
-
-        # Jalankan playwright install
-        npx playwright install chromium 2>&1 | grep -E "(Downloading|✓|error|Error)" || true
-
-        # Cari binary yang baru diinstall
+    # Cek 2: playwright cache yang sudah ada (dari install sebelumnya)
+    if [ -z "$FOUND_CHROME" ]; then
+        PW_CACHE="${PLAYWRIGHT_BROWSERS_PATH:-/home/container/.cache/ms-playwright}"
+        # Cari binary chrome/chromium di cache (cek lebih spesifik dulu)
         for PW_BIN in \
-            "$PW_CACHE_DIR"/chromium-*/chrome-linux/chrome \
-            "$PW_CACHE_DIR"/chromium-*/chrome-linux64/chrome \
-            "$PW_CACHE_DIR"/chromium*/chrome \
-            "$PW_CACHE_DIR"/chrome*/chrome; do
+            "$PW_CACHE"/chromium-*/chrome-linux/chrome \
+            "$PW_CACHE"/chromium-*/chrome-linux64/chrome \
+            "$PW_CACHE"/chromium*/chrome \
+            "$PW_CACHE"/chrome*/chrome; do
             if [ -f "$PW_BIN" ] && [ -x "$PW_BIN" ]; then
                 FOUND_CHROME="$PW_BIN"
+                echo -e "${GREEN}[Browser] Playwright Chromium cache ditemukan: ${FOUND_CHROME}${NC}"
                 break
             fi
         done
-
-        if [ -n "$FOUND_CHROME" ]; then
-            echo -e "${GREEN}[Browser] Playwright Chromium berhasil diinstall!${NC}"
-        else
-            echo -e "${RED}[Browser] Playwright Chromium gagal diinstall (cek disk atau network).${NC}"
-        fi
-    else
-        echo -e "${RED}[Browser] Ruang disk tidak cukup (< 350 MB). Chromium tidak bisa diinstall.${NC}"
-        echo -e "${YELLOW}[Browser] Bebaskan disk atau set CHROME_EXECUTABLE_PATH manual di env panel.${NC}"
     fi
-fi
 
-# Hasil akhir
-if [ -n "$FOUND_CHROME" ]; then
-    CHROME_VER=$("$FOUND_CHROME" --version 2>/dev/null || echo "unknown")
-    echo -e "${GREEN}[Browser] ✅ Chromium siap: ${FOUND_CHROME}${NC}"
-    echo -e "${GREEN}[Browser] Versi: ${CHROME_VER}${NC}"
-    export CHROME_EXECUTABLE_PATH="$FOUND_CHROME"
-else
-    echo -e "${RED}[Browser] ⚠️  Chromium tidak tersedia — fitur navigate_web dinonaktifkan.${NC}"
-    echo -e "${YELLOW}[Browser] Solusi: set CHROME_EXECUTABLE_PATH di environment panel Pterodactyl.${NC}"
+    # Cek 3: jika belum ada, coba install via playwright (tanpa perlu root)
+    if [ -z "$FOUND_CHROME" ]; then
+        echo -e "${YELLOW}[Browser] Chromium belum ada. Mencoba instalasi via Playwright...${NC}"
+
+        # Cek ruang disk yang tersedia (butuh ~300MB untuk Chromium)
+        AVAIL_MB=$(df -m /home/container 2>/dev/null | awk 'NR==2{print $4}' || df -m . 2>/dev/null | awk 'NR==2{print $4}' || echo "0")
+        echo -e "${YELLOW}[Browser] Ruang disk tersedia: ${AVAIL_MB} MB (minimal 350 MB diperlukan)${NC}"
+
+        if [ "$AVAIL_MB" -ge 350 ] 2>/dev/null; then
+            echo -e "${YELLOW}[Browser] Mengunduh Chromium via playwright (bisa memakan waktu 1-3 menit)...${NC}"
+
+            # Izinkan download sementara (sudah di-skip di atas untuk npm install)
+            PW_CACHE_DIR="${PLAYWRIGHT_BROWSERS_PATH:-/home/container/.cache/ms-playwright}"
+            export PLAYWRIGHT_BROWSERS_PATH="$PW_CACHE_DIR"
+
+            # Jalankan playwright install
+            npx playwright install chromium 2>&1 | grep -E "(Downloading|✓|error|Error)" || true
+
+            # Cari binary yang baru diinstall
+            for PW_BIN in \
+                "$PW_CACHE_DIR"/chromium-*/chrome-linux/chrome \
+                "$PW_CACHE_DIR"/chromium-*/chrome-linux64/chrome \
+                "$PW_CACHE_DIR"/chromium*/chrome \
+                "$PW_CACHE_DIR"/chrome*/chrome; do
+                if [ -f "$PW_BIN" ] && [ -x "$PW_BIN" ]; then
+                    FOUND_CHROME="$PW_BIN"
+                    break
+                fi
+            done
+
+            if [ -n "$FOUND_CHROME" ]; then
+                echo -e "${GREEN}[Browser] Playwright Chromium berhasil diinstall!${NC}"
+            else
+                echo -e "${RED}[Browser] Playwright Chromium gagal diinstall (cek disk atau network).${NC}"
+            fi
+        else
+            echo -e "${RED}[Browser] Ruang disk tidak cukup (< 350 MB). Chromium tidak bisa diinstall.${NC}"
+            echo -e "${YELLOW}[Browser] Bebaskan disk atau set CHROME_EXECUTABLE_PATH manual di env panel.${NC}"
+        fi
+    fi
+
+    # Hasil akhir
+    if [ -n "$FOUND_CHROME" ]; then
+        CHROME_VER=$("$FOUND_CHROME" --version 2>/dev/null || echo "unknown")
+        echo -e "${GREEN}[Browser] ✅ Chromium siap: ${FOUND_CHROME}${NC}"
+        echo -e "${GREEN}[Browser] Versi: ${CHROME_VER}${NC}"
+        export CHROME_EXECUTABLE_PATH="$FOUND_CHROME"
+    else
+        echo -e "${RED}[Browser] ⚠️  Chromium tidak tersedia — fitur navigate_web dinonaktifkan.${NC}"
+        echo -e "${YELLOW}[Browser] Solusi: set CHROME_EXECUTABLE_PATH di environment panel Pterodactyl.${NC}"
+    fi
 fi
 
 if [ ! -f ".env" ]; then
