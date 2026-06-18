@@ -80,6 +80,32 @@ client.once(Events.ClientReady, async () => {
     console.error('[DB] Failed to initialize database:', error)
   }
 
+  // --- DIAGNOSTIC PYTHON ---
+  try {
+    const { execSync } = await import('child_process')
+    console.log('[Diagnostic] Checking python packages...')
+    try {
+      const pipShow = execSync('python3 -m pip show openbrowser-ai', { encoding: 'utf-8' })
+      console.log(`[Diagnostic] pip show:\n${pipShow}`)
+    } catch (err) {
+      console.log(`[Diagnostic] pip show failed: ${err.message}`)
+    }
+    try {
+      const pythonPath = execSync('python3 -c "import sys; print(sys.path)"', { encoding: 'utf-8' })
+      console.log(`[Diagnostic] Python sys.path: ${pythonPath.trim()}`)
+    } catch (err) {
+      console.log(`[Diagnostic] Python sys.path check failed: ${err.message}`)
+    }
+    try {
+      const openbrowserFile = execSync('python3 -c "import openbrowser; print(openbrowser.__file__)"', { encoding: 'utf-8' })
+      console.log(`[Diagnostic] openbrowser path: ${openbrowserFile.trim()}`)
+    } catch (err) {
+      console.log(`[Diagnostic] openbrowser import failed: ${err.message}`)
+    }
+  } catch (err) {
+    console.log('[Diagnostic] Diagnostic check error:', err.message)
+  }
+
   try {
     await initMcp()
     console.log('[MCP] Client engine initialized.')
