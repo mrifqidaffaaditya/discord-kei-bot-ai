@@ -200,6 +200,11 @@ client.on(Events.MessageCreate, async (msg) => {
   try {
     let cleanInput = msg.content.replace(`<@${client.user.id}>`, "").trim()
 
+    // Deteksi attachment gambar dari Discord
+    const imageAttachments = msg.attachments
+      ? [...msg.attachments.values()].filter(att => att.contentType?.startsWith('image/'))
+      : []
+
     if (msg.reference) {
       try {
         const referencedMsg = await msg.channel.messages.fetch(msg.reference.messageId)
@@ -210,9 +215,12 @@ client.on(Events.MessageCreate, async (msg) => {
       } catch { /* ignore */ }
     }
 
-    if (!cleanInput) return
+    // Jika tidak ada teks DAN tidak ada gambar, skip
+    if (!cleanInput && imageAttachments.length === 0) return
+    // Jika tidak ada teks tapi ada gambar, beri prompt default analisis
+    if (!cleanInput && imageAttachments.length > 0) cleanInput = 'Tolong analisis gambar ini.'
 
-    console.log(`[Message] Processing from ${msg.author.tag} (${userTag}) in ${guildId}`)
+    console.log(`[Message] Processing from ${msg.author.tag} (${userTag}) in ${guildId} | images: ${imageAttachments.length}`)
     const stopTyping = startTypingLoop(msg.channel)
     const spinner = startSpinner(`[${userTag}] Mengambil data...`)
 
@@ -246,6 +254,20 @@ client.on(Events.MessageCreate, async (msg) => {
       }
 
       spinner.update(`[${userTag}] Generating AI reply...`)
+
+      // Build userInput: jika ada gambar, buat content array vision-compatible
+      let visionUserInput = taggedInput
+      if (imageAttachments.length > 0) {
+        // Format OpenAI vision: content array dengan text + image_url
+        visionUserInput = [
+          { type: 'text', text: taggedInput },
+          ...imageAttachments.map(att => ({
+            type: 'image_url',
+            image_url: { url: att.url, detail: 'high' }
+          }))
+        ]
+        console.log(`[Vision] Mengirim ${imageAttachments.length} gambar ke API untuk analisis`)
+      }
 
       // === TOOL ICON MAP ===
       const TOOL_ICONS = {
@@ -364,7 +386,7 @@ client.on(Events.MessageCreate, async (msg) => {
         system: serverPersonality,
         history,
         memory: serverMemory,
-        userInput: taggedInput,
+        userInput: visionUserInput,
         userTagMap,
         debug: debugMode,
         userId,
@@ -373,6 +395,7 @@ client.on(Events.MessageCreate, async (msg) => {
         onToolStart,
         onToolEnd
       })
+
 
       let ai
       try {

@@ -34,23 +34,13 @@ function formatServerMemory(memoryRows, userTagMap = {}) {
 }
 
 /**
- * Compress history: pesan lama di-truncate untuk hemat token.
+ * History: hanya ambil N pesan terakhir yang relevan.
+ * Pesan lama DIBUANG sepenuhnya — bukan dicompress — agar tidak membingungkan AI.
  */
-function compressHistory(history) {
-  if (history.length <= 6) return history
-
-  const recentCount = 5
-  const older = history.slice(0, -recentCount)
-  const recent = history.slice(-recentCount)
-
-  const compressed = older.map(msg => ({
-    role: msg.role,
-    content: msg.content.length > 200
-      ? msg.content.slice(0, 200) + '...'
-      : msg.content
-  }))
-
-  return [...compressed, ...recent]
+function trimHistory(history, maxMessages = 12) {
+  if (history.length <= maxMessages) return history
+  // Selalu buang yang lama, hanya simpan N pesan terakhir
+  return history.slice(-maxMessages)
 }
 
 /**
@@ -93,8 +83,14 @@ export async function generateReply({
   onToolEnd
 }) {
   try {
+    // Normalisasi userInput: bisa berupa string atau array (vision)
+    // userInputText = teks bersih untuk operasi yang butuh string
+    const userInputText = Array.isArray(userInput)
+      ? (userInput.find(p => p.type === 'text')?.text || '')
+      : userInput
+
     // 1. Deteksi skill yang relevan secara otomatis berdasarkan kata kunci/fuzzy match
-    const matchedSkills = await detectSkills(userInput, guildId)
+    const matchedSkills = await detectSkills(userInputText, guildId)
 
     // 2. Modifikasi system prompt berdasarkan skill bertipe 'prompt' atau 'persona'
     let dynamicSystemPrompt = system
@@ -114,26 +110,40 @@ export async function generateReply({
 
     dynamicSystemPrompt += memorySection
 
-    // Tambahkan instruksi operasional untuk pencarian web & kunjungan website otomatis
+    // Instruksi operasional: pencarian web + anti-halusinasi enforcement
     const agentOperationalInstructions = `
 
-=== PETUNJUK OPERASIONAL ALUR KERJA PENCARIAN (PENTING) ===
-Tool 'web_search' sudah OTOMATIS mengunjungi dan membaca konten penuh dari 3 URL teratas di setiap pencarian (field 'full_content' dalam hasil).
+=== INSTRUKSI OPERASIONAL WAJIB ===
 
-Panduan penggunaan:
-1. MANFAATKAN 'full_content' — baca konten lengkap dari setiap hasil yang sudah di-fetch, bukan hanya 'snippet'.
-2. CROSS-CHECK — bandingkan informasi dari beberapa sumber yang sudah di-fetch untuk memastikan akurasi dan objektivitas.
-3. FETCH TAMBAHAN — jika ada URL relevan lain yang belum diambil (belum ada full_content-nya), gunakan tool 'fetch_url' secara eksplisit untuk membacanya.
-4. JANGAN BERHENTI di satu sumber — selalu verifikasi dari minimal 2-3 website berbeda.
-5. JAWABAN AKHIR — tuliskan secara terstruktur, detail, akurat, dan sertakan link referensi dari sumber yang sudah dikunjungi agar pengguna bisa memverifikasi sendiri.`
+【 ANTI-HALUSINASI 】
+- Jika pertanyaan menyangkut fakta spesifik, data terkini, harga, berita, atau hal yang bisa berubah: WAJIB gunakan web_search SEBELUM menjawab.
+- JANGAN jawab pertanyaan faktual hanya dari pengetahuan internal tanpa verifikasi ke internet.
+- Jika hasil tool tidak cukup atau tidak ditemukan: katakan terang-terangan "tidak ditemukan" atau "saya tidak tahu."
+- DILARANG mengisi kekosongan data dengan asumsi atau data yang dikarang.
+
+【 PENGGUNAAN WEB SEARCH 】
+Tool 'web_search' sudah OTOMATIS mengunjungi dan membaca konten penuh dari 3 URL teratas (field 'full_content').
+1. MANFAATKAN 'full_content' — baca seluruh konten, bukan hanya snippet.
+2. CROSS-CHECK — bandingkan minimal 2-3 sumber berbeda sebelum menjawab.
+3. FETCH TAMBAHAN — gunakan 'fetch_url' jika perlu membaca URL lain yang belum ada full_content-nya.
+4. SUMBER — cantumkan link referensi di jawaban akhir agar user bisa verifikasi.
+
+【 ANALISIS GAMBAR 】
+- Jika user melampirkan gambar: analisis secara mendalam dan akurat.
+- Deskripsikan hanya yang TERLIHAT. Jangan menambahkan fakta yang tidak ada.
+- Baca teks dalam gambar dengan tepat jika ada.
+
+【 KONTEKS PERCAKAPAN 】
+- Fokus pada pesan terbaru. Jangan ungkit-ungkit percakapan lama yang tidak relevan.
+- History hanya disertakan untuk konteks — bukan untuk diulang-ulang.`
 
     dynamicSystemPrompt += agentOperationalInstructions
 
-    const compressedHistory = compressHistory(history)
+    const trimmedHistory = trimHistory(history, 12)
 
     const messages = [
       { role: 'system', content: dynamicSystemPrompt },
-      ...compressedHistory,
+      ...trimmedHistory,
       { role: 'user', content: userInput }
     ]
 
